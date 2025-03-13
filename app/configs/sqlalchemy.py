@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import os
 from litestar.plugins.sqlalchemy import AsyncSessionConfig, SQLAlchemyAsyncConfig
 from litestar.datastructures import State
 from collections.abc import AsyncGenerator
@@ -6,10 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.exc import IntegrityError
 from litestar.exceptions import ClientException
 from litestar.status_codes import HTTP_409_CONFLICT
-
+from dotenv import load_dotenv
+load_dotenv()
 session_config = AsyncSessionConfig(expire_on_commit=False)
 sqlalchemy_config = SQLAlchemyAsyncConfig(
-    connection_string="postgresql+asyncpg://avnadmin:AVNS_EA-Go9MXV9oW8HX4lP_@real-estate-nh151700-3276.h.aivencloud.com:10613/defaultdb",
+    connection_string=os.environ.get("DB_URL"),
     session_config=session_config,
     create_all=True,
 )  # Create 'async_session' dependency.
