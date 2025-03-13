@@ -1,0 +1,7 @@
+litestar
+pydantic==2.10.6
+asyncpg
+psycopg2
+geoalchemy2
+bcrypt
+SQLAlchemy-serializer

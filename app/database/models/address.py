@@ -1,0 +1,56 @@
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
+from sqlalchemy import (
+    Numeric,
+    String,
+    Text,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from geoalchemy2 import Geography
+from litestar.plugins.sqlalchemy import base
+from litestar.dto import dto_field
+from database.models.base import (
+    BaseModel,
+    BaseSchema,
+)  # Adjust the import per your project setup
+
+if TYPE_CHECKING:
+    from database.models.property import PropertySchema
+    from database.models.user import UserSchema
+    from database.models.property import Property
+    from database.models.user import User
+
+
+@dataclass
+class Address(BaseModel):
+    __tablename__ = "addresses"
+    street: Mapped[str] = mapped_column(String(255), nullable=False)
+    city: Mapped[str] = mapped_column(String(100), nullable=False)
+    postal_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    neighborhood: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    latitude: Mapped[float | None] = mapped_column(Numeric(12, 9), nullable=False)
+    longitude: Mapped[float | None] = mapped_column(Numeric(12, 9), nullable=False)
+    coordinates: Mapped[str | None] = mapped_column(
+        Geography("POINT", srid=4326), nullable=True, info=dto_field(mark="read-only")
+    )
+    geohash: Mapped[str | None] = mapped_column(
+        Text, nullable=True, default=None, info=dto_field(mark="private")
+    )
+    user: Mapped["User"] = relationship("User", back_populates="address", uselist=False)
+    property: Mapped["Property"] = relationship(
+        "Property", back_populates="address", uselist=False
+    )
+
+
+class AddressSchema(BaseSchema):
+    street: str
+    city: str
+    postal_code: str | None
+    neighborhood: str
+    latitude: float
+    longitude: float
+    coordinates: str | None
+    geohash: str | None
+    user: "UserSchema"
+    property: "PropertySchema"
