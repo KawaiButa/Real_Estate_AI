@@ -1,6 +1,6 @@
-from typing import Annotated, Optional
+from typing import Optional
 from litestar.plugins.sqlalchemy import SQLAlchemyDTO, SQLAlchemyDTOConfig
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from database.models.property import Property
 

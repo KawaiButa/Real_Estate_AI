@@ -26,7 +26,7 @@ config = OpenAPIConfig(
         "OPENAPI_DESCRIPTION",
         "Litestar template for Railway",
     ),
-    servers="http://localhost:8000" if os.getenv("DEBUG", "false").lower() == "true" else "/",  # type: ignore[arg-type]
+    # servers=os.getenv("BASE_URL", "http://localhost:8000"),
     external_docs=os.getenv(  # type: ignore[arg-type]
         "OPENAPI_EXTERNAL_DOCS", "https://github.com/JacobCoffee/litestar-template/docs/"  # type: ignore[arg-type]
     ),
