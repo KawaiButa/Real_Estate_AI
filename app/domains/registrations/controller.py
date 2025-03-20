@@ -34,9 +34,7 @@ class PartnerRegistrationController(Controller):
     }
 
     @get(
-        "/me",
-        guards=[role_guard([GuardRole.PARTNER])],
-        opt={"partner": GuardRole.PARTNER},
+        "/",
     )
     async def get_my_partner_registration(
         self,
@@ -47,7 +45,11 @@ class PartnerRegistrationController(Controller):
             user_id=request.user.id
         )
 
-    @get("/users/{user_id: uuid}", opt={"admin": GuardRole.ADMIN})
+    @get(
+        "/users/{user_id: uuid}",
+        guards=[role_guard([GuardRole.ADMIN])],
+        opt={"admin": GuardRole.ADMIN},
+    )
     async def get_user_partner_registration(
         self,
         user_id: uuid.UUID,
@@ -74,6 +76,11 @@ class PartnerRegistrationController(Controller):
     ) -> PartnerRegistration:
         if "partner" in [role["name"] for role in request.user.roles]:
             raise PermissionDeniedException("You are a partner already")
+        partner_registration = await partner_registration_service.get_one_or_none(
+            PartnerRegistration.user_id.__eq__(request.user.id)
+        )
+        if partner_registration:
+            raise ValidationException("You have already registered to be a partner")
         if (
             data.type == PartnerType.ENTERPRISE
             and not data.business_registration_certificate_img
@@ -99,7 +106,9 @@ class PartnerRegistrationController(Controller):
                 )
             )
         data.user_id = request.user.id
-        partner_registration = await partner_registration_service.create(data=data)
+        partner_registration = await partner_registration_service.create(
+            data=data, auto_commit=True, auto_refresh=True
+        )
         return partner_registration
 
     @patch(

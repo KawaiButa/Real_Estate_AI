@@ -20,7 +20,7 @@ from database.models.base import BaseModel, BaseSchema
 from database.models.role import RoleSchema, UserRole, Role
 from litestar.plugins.sqlalchemy import base
 from database.models.address import Address, AddressSchema
-from database.models.property import Property, PropertySchema
+from database.models.property import Favorite, Property, PropertySchema
 from litestar.dto import dto_field
 
 
@@ -47,7 +47,7 @@ class User(BaseModel):
         String(64), nullable=True, info=dto_field("private")
     )
     reset_password_expires: Mapped[Optional[datetime]] = mapped_column(
-        DateTime, nullable=True, info=dto_field("private")
+        DateTime(timezone=True), nullable=True, info=dto_field("private")
     )
     # Relationships
     address: Mapped[Optional["Address"]] = relationship(
@@ -61,6 +61,11 @@ class User(BaseModel):
     )
     partner_registration: Mapped[PartnerRegistration | None] = relationship(
         "PartnerRegistration", back_populates="user", lazy="joined"
+    )
+    favorites: Mapped[list[Property]] = relationship(
+        "Property",
+        secondary=Favorite.__table__,
+        lazy="selectin",
     )
 
 
@@ -76,6 +81,7 @@ class UserSchema(BaseSchema):
     roles: list[RoleSchema]
     properties: list[PropertySchema]
     registration: Optional[PartnerRegistrationSchema] = None
+    favorites: list[PropertySchema]
 
 
 UserSchema.model_rebuild()

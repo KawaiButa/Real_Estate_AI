@@ -27,7 +27,6 @@ class UserRole(base.DefaultBase):
 class Role(BaseModel, base.SlugKey, UniqueMixin):
     __tablename__ = "roles"
     name: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
-
     @classmethod
     def unique_hash(cls, name: str, slug: str | None = None) -> Hashable:
         return slugify(name)

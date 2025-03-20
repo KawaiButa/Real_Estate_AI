@@ -3,6 +3,7 @@ from litestar.exceptions import ValidationException
 from litestar import Litestar, MediaType, Request, Response, get
 from litestar.types import ControllerRouterHandler
 from litestar.plugins.sqlalchemy import SQLAlchemyPlugin
+from domains.admin.controller import AdminController
 from domains.profile.controller import ProfileController
 from domains.registrations.controller import PartnerRegistrationController
 from configs.sqlalchemy import provide_transaction, sqlalchemy_config
@@ -63,6 +64,7 @@ routes: list[ControllerRouterHandler] = [
     PartnerRegistrationController,
     ProfileController,
     PrometheusController,
+    AdminController,
     schema,
     create_static_files_router(
         path="/",
@@ -83,5 +85,5 @@ app = Litestar(
         ValidationException: validation_exception_handler,
     },
     template_config=template_config,
-    plugins=[SQLAlchemyPlugin(config=sqlalchemy_config), structlog_plugin],
+    plugins=[SQLAlchemyPlugin(config=sqlalchemy_config)],
 )

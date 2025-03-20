@@ -76,8 +76,7 @@ class PartnerRegistrationService(SQLAlchemyAsyncRepositoryService[PartnerRegistr
 
     async def approve_registration(self, user_id: uuid.UUID):
         partner_registration = await self.get_one_or_none(
-            PartnerRegistration.user_id.__eq__(user_id),
-            execution_options=selectinload(PartnerRegistration.user),
+            PartnerRegistration.user_id.__eq__(user_id)
         )
         if not partner_registration:
             raise ValidationException(
@@ -104,7 +103,6 @@ class PartnerRegistrationService(SQLAlchemyAsyncRepositoryService[PartnerRegistr
     async def reject_registration(self, user_id: uuid.UUID):
         partner_registration = await self.get_one_or_none(
             PartnerRegistration.user_id.__eq__(user_id),
-            execution_options=selectinload(PartnerRegistration.user),
         )
         if not partner_registration:
             raise ValidationException(

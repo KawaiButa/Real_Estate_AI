@@ -58,7 +58,7 @@ class MailService:
         ).render(
             {
                 "user_name": user.name,
-                "reset_link": f"{os.environ.get('BASE_URL')}/reset_password?token={token}",
+                "reset_link": f"{os.environ.get('BASE_URL')}/auth/reset_password?token={token}",
                 "current_year": date.today().year,
             }
         )

@@ -10,6 +10,7 @@ class UserRepository(SQLAlchemyAsyncRepository[User]):
     """User SQLAlchemy Repository."""
     model_type = User
 
+
 async def provide_users_repo(state: State) -> UserRepository:
     async with provide_transaction(state=state) as db_session:
         return UserRepository(session=db_session)

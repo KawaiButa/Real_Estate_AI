@@ -12,12 +12,28 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database.models.base import BaseModel, BaseSchema
+from litestar.plugins.sqlalchemy import (
+    base,
+)
 
 if TYPE_CHECKING:
     from database.models.address import AddressSchema
     from database.models.user import UserSchema
     from database.models.address import Address
     from database.models.user import User
+
+
+@dataclass
+class Favorite(BaseModel):
+    __tablename__ = "favorites"
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+    )
+    property_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("properties.id", ondelete="CASCADE"),
+    )
 
 
 @dataclass

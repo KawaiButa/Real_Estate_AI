@@ -19,10 +19,10 @@ class BaseModel(base.DefaultBase):
         default=uuid.uuid4
     )
     created_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime, default=datetime.datetime.now, info=dto_field("read-only")
+        DateTime(timezone=True), default=datetime.datetime.now, info=dto_field("read-only")
     )
     updated_at: Mapped[datetime.datetime] = mapped_column(
-        DateTime,
+        DateTime(timezone=True),
         default=datetime.datetime.now,
         onupdate=datetime.datetime.now,
         info=dto_field("read-only"),
