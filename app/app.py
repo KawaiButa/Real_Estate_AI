@@ -53,10 +53,15 @@ def on_startup():
     ASSETS_DIR.mkdir(exist_ok=True)
 
 
-@get(path="/schema")
+@get(path="/schema", include_in_schema=False)
 async def schema(request: Request) -> dict:
     schema = request.app.openapi_schema
     return schema.to_schema()
+
+
+@get("/", opt={"no_auth": True}, include_in_schema=False)
+async def helloWorld(request: Request) -> str:
+    return "Hello world"
 
 
 routes: list[ControllerRouterHandler] = [
@@ -67,6 +72,7 @@ routes: list[ControllerRouterHandler] = [
     PrometheusController,
     AdminController,
     schema,
+    helloWorld,
     create_static_files_router(
         path="/",
         directories=["assets"],

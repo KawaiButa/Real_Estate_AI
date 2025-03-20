@@ -1,6 +1,6 @@
 from typing import Any
 import uuid
-from litestar import Controller, Request, get, patch, post
+from litestar import Controller, Request, Response, get, patch, post
 from litestar.di import Provide
 from database.models.property import Property
 from domains.properties.service import PropertyService, provide_property_service
@@ -68,13 +68,16 @@ class ProfileController(Controller):
         profile_service: ProfileService,
         property_service: PropertyService,
         request: Request[User, Token, Any],
-    ) -> Any:
+    ) -> Response[Any]:
         property = await property_service.get_one_or_none(
             Property.id.__eq__(property_id)
         )
         if not property:
             raise ValidationException(f"No property found with id {property_id}")
-        profile_service.toggle_favorite(user_id=request.user.id, property=property)
+        await profile_service.toggle_favorite(
+            user_id=request.user.id, property=property
+        )
+        return Response(content="Update favorite successfully", status_code=200)
 
     @post(
         "/{user_id: uuid}/favorite/{property_id: uuid}",
@@ -86,10 +89,11 @@ class ProfileController(Controller):
         property_id: uuid.UUID,
         profile_service: ProfileService,
         property_service: PropertyService,
-    ) -> Any:
+    ) -> Response[Any]:
         property = await property_service.get_one_or_none(
             Property.id.__eq__(property_id)
         )
         if not property:
             raise ValidationException(f"No property found with id {property_id}")
-        profile_service.toggle_favorite(user_id=user_id, property=property)
+        await profile_service.toggle_favorite(user_id=user_id, property=property)
+        return Response(content="Update favorite successfully", status_code=200)
