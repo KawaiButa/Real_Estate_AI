@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 import uuid
 from dataclasses import dataclass
 from datetime import date
-from sqlalchemy import Enum, String, Date, ForeignKey
+from sqlalchemy import Boolean, Enum, String, Date, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from database.models.base import BaseModel, BaseSchema
@@ -19,8 +19,6 @@ class PartnerType(enum.Enum):
     INDIVIDUAL = "Individual"
     ENTERPRISE = "Enterprise"
 
-
-@dataclass
 class PartnerRegistration(BaseModel):
     __tablename__ = "partner_registrations"
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -34,7 +32,7 @@ class PartnerRegistration(BaseModel):
     )
 
     type: Mapped[PartnerType] = mapped_column(
-        Enum(PartnerType, name="partner_type"), nullable=False
+        Enum(PartnerType, name="partnertype"), nullable=False
     )
 
     profile_url: Mapped[str] = mapped_column(String(255), nullable=True)
@@ -49,8 +47,9 @@ class PartnerRegistration(BaseModel):
     authorized_representative_name: Mapped[str] = mapped_column(
         String(255), nullable=True
     )
-    approved: Mapped[bool | None] = mapped_column(
-        String(100), nullable=True, default=None, server_default="NULL"
+    approved: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=None)
+    reject_reason: Mapped[str | None] = mapped_column(
+        String(255), nullable=True, default=None
     )
 
 

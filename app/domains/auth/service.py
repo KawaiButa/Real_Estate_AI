@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import hashlib
 import secrets
 import uuid
@@ -31,7 +31,7 @@ class AuthService(SQLAlchemyAsyncRepositoryService[User]):
         userData: DTOData[User],
     ) -> RegisterReturnModel:
         user = userData.create_instance()
-        existedUser = await self.repository.find_by_email(user.email)
+        existedUser = await self.get_one_or_none(User.email.__eq__(user.email))
         if existedUser:
             raise ValidationException("The email is assigned with another account")
         user.password = bcrypt.hash(user.password)
@@ -57,11 +57,11 @@ class AuthService(SQLAlchemyAsyncRepositoryService[User]):
         )
 
     async def login(self, userData: DTOData[User]) -> LoginReturnSchema:
-        user = userData.create_instance()
+        data = userData.create_instance()
         user = await self.get_one_or_none(
-            User.email.__eq__(user.email),
+            User.email.__eq__(data.email),
         )
-        if not user:
+        if not user or not bcrypt.verify(data.password, user.password):
             raise ValidationException("Invalid credentials")
         return LoginReturnSchema(
             token=oauth2_auth.create_token(
@@ -117,7 +117,7 @@ class AuthService(SQLAlchemyAsyncRepositoryService[User]):
         hashed_token = hashlib.sha256(raw_token.encode()).hexdigest()
 
         # Set token expiration time (e.g., 1 hour from now).
-        expiration = datetime.utcnow() + timedelta(minutes=15)
+        expiration = datetime.now(timezone.utc) + timedelta(minutes=15)
         user.reset_password_token = hashed_token
         user.reset_password_expires = expiration
         user = await self.update(
@@ -138,10 +138,11 @@ class AuthService(SQLAlchemyAsyncRepositoryService[User]):
         user = await self.get_one_or_none(
             User.reset_password_token.__eq__(hashed_token)
         )
-        if not user or datetime.utcnow() > user.reset_password_expires:
+        if not user or datetime.now(timezone.utc) > user.reset_password_expires:
             raise ValidationException("The token is incorrect or expired")
         user.password = bcrypt.hash(new_password)
-        user.updated_at = datetime.utcnow()
+        user.reset_password_expires = None
+        user.reset_password_token = None
         user = await self.update(user, auto_commit=True, auto_refresh=True)
         return user
 

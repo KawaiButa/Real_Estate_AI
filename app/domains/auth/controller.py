@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Annotated, Any
-from litestar import Controller, Request, get, post
+from litestar import Controller, get, post
 from litestar.di import Provide
 from litestar.dto import DTOData
 from domains.email.service import MailService, provide_mail_service
@@ -12,13 +12,13 @@ from domains.auth.dtos import (
     RegisterReturnDTO,
     ResetPasswordSchema,
 )
+from litestar.enums import RequestEncodingType
 from domains.auth.service import AuthService, provide_auth_service
 from database.models.user import User
 from litestar.plugins.pydantic import PydanticDTO
 from litestar.exceptions import InternalServerException
 from litestar.response import Template
-from litestar.params import Parameter
-from litestar.openapi import ResponseSpec
+from litestar.params import Body
 
 
 class AuthController(Controller):
@@ -80,7 +80,11 @@ class AuthController(Controller):
 
     @post("/reset-password", dto=PydanticDTO[ResetPasswordSchema], status_code=200)
     async def reset_password(
-        self, data: ResetPasswordSchema, auth_service: AuthService
+        self,
+        data: Annotated[
+            ResetPasswordSchema, Body(media_type=RequestEncodingType.URL_ENCODED)
+        ],
+        auth_service: AuthService,
     ) -> str:
         user = await auth_service.reset_password(
             token=data.token, new_password=data.new_password
