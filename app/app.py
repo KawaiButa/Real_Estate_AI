@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from litestar.exceptions import ValidationException
 from litestar import Litestar, MediaType, Request, Response, get
@@ -75,15 +76,17 @@ routes: list[ControllerRouterHandler] = [
     ),
 ]
 prometheus_config = PrometheusConfig(group_path=False)
+structlog_plugin = StructlogPlugin()
+
 app = Litestar(
     route_handlers=routes,
     openapi_config=openapi.config,
     dependencies={"transaction": Provide(provide_transaction, sync_to_thread=True)},
     on_app_init=[oauth2_auth.on_app_init],
-    debug=True,
+    debug=os.environ.get("ENVIRONMENT") == "dev",
     exception_handlers={
         ValidationException: validation_exception_handler,
     },
     template_config=template_config,
-    plugins=[SQLAlchemyPlugin(config=sqlalchemy_config)],
+    plugins=[SQLAlchemyPlugin(config=sqlalchemy_config), structlog_plugin],
 )

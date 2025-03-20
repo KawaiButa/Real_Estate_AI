@@ -91,3 +91,29 @@ The application follows a layered architecture to ensure maintainability and sca
 - **Functionality**: PostgreSQL is used as the relational database management system to store real estate listings and related information.
 
 This architecture ensures that each component has a clear responsibility, making the application easier to maintain and extend.
+9. **Deploy the Application**:
+
+The project includes a **Dockerfile** for containerizing the application, making it simple to deploy on platforms such as Railwail. The following steps provide an overview of how to build and deploy the application using Docker:
+
+1. **Build the Docker Image:**
+   - Navigate to the project directory containing the Dockerfile.
+   - Run the command:
+     ```bash
+     docker build -t real-estate-backend .
+     ```
+
+2. **Run the Container Locally:**
+   - After building the image, run it locally to verify that everything is working:
+     ```bash
+     docker run -d -p 8000:8000 real-estate-backend
+     ```
+   - The application should now be accessible on `http://localhost:8000`.
+
+3. **Deploy on Railwail:**
+   - Push your Docker image to a container registry (e.g., Docker Hub).
+   - Configure your Railwail deployment to pull the image from the registry.
+   - Use Railwail's deployment settings to set environment variables, networking, and scaling options as needed.
+   - Railwail will manage the container orchestration, ensuring that your backend is always up and running.
+
+These steps ensure that the application can be deployed in a consistent and reproducible manner, whether for local development or in a production environment.
+
