@@ -1,6 +1,6 @@
 import uuid
 from collections.abc import AsyncGenerator
-from app.database.models.property import Property
+from database.models.property import Property
 from database.models.user import User, UserSchema
 from domains.auth.repository import UserRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService

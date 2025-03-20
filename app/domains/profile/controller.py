@@ -2,7 +2,7 @@ from typing import Any
 import uuid
 from litestar import Controller, Request, get, patch, post
 from litestar.di import Provide
-from app.database.models.property import Property
+from database.models.property import Property
 from domains.properties.service import PropertyService, provide_property_service
 from database.models.user import User, UserSchema
 from domains.auth.guard import GuardRole, role_guard
@@ -78,7 +78,7 @@ class ProfileController(Controller):
 
     @post(
         "/{user_id: uuid}/favorite/{property_id: uuid}",
-        guards=[role_guard([GuardRole.admin])],
+        guards=[role_guard([GuardRole.ADMIN])],
     )
     async def admin_toggle_favorite(
         self,
@@ -86,7 +86,7 @@ class ProfileController(Controller):
         property_id: uuid.UUID,
         profile_service: ProfileService,
         property_service: PropertyService,
-    ):
+    ) -> Any:
         property = await property_service.get_one_or_none(
             Property.id.__eq__(property_id)
         )
