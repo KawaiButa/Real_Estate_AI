@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from sqlalchemy import (
     Numeric,
     String,
@@ -37,20 +37,13 @@ class Address(BaseModel):
     geohash: Mapped[str | None] = mapped_column(
         Text, nullable=True, default=None, info=dto_field(mark="private")
     )
-    user: Mapped["User"] = relationship("User", back_populates="address", uselist=False)
-    property: Mapped["Property"] = relationship(
-        "Property", back_populates="address", uselist=False
-    )
-
 
 class AddressSchema(BaseSchema):
     street: str
     city: str
-    postal_code: str | None
-    neighborhood: str
+    postal_code: Optional[str]
+    neighborhood: Optional[str]
     latitude: float
     longitude: float
-    coordinates: str | None
-    geohash: str | None
-    user: "UserSchema"
-    property: "PropertySchema"
+    coordinates: Optional[str]
+    geohash: Optional[str]

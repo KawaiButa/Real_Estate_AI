@@ -55,7 +55,7 @@ def on_startup():
 
 @get(path="/schema", include_in_schema=False)
 async def schema(request: Request) -> dict:
-    schema = request.app.openapi_schema
+    schema = request.openapi_schema
     return schema.to_schema()
 
 
@@ -94,5 +94,5 @@ app = Litestar(
         ValidationException: validation_exception_handler,
     },
     template_config=template_config,
-    plugins=[SQLAlchemyPlugin(config=sqlalchemy_config), structlog_plugin],
+    plugins=[SQLAlchemyPlugin(config=sqlalchemy_config)],
 )

@@ -119,7 +119,7 @@ def schema_upgrades() -> None:
         sa.Column("verified", sa.Boolean(), nullable=False),
         sa.Column("address_id", sa.UUID(), nullable=True),
         sa.Column(
-            "device_token", sa.String(length=255), server_default="NULL", nullable=True
+            "device_token", sa.String(length=255), nullable=True
         ),
         sa.Column("reset_password_token", sa.String(length=64), nullable=True),
         sa.Column("reset_password_expires", sa.DateTime(timezone=True), nullable=True),
@@ -162,7 +162,7 @@ def schema_upgrades() -> None:
             "authorized_representative_name", sa.String(length=255), nullable=True
         ),
         sa.Column(
-            "approved", sa.String(length=100), server_default="NULL", nullable=True
+            "approved", sa.String(length=100), nullable=True
         ),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
@@ -188,7 +188,7 @@ def schema_upgrades() -> None:
         sa.Column("bedrooms", sa.Integer(), nullable=False),
         sa.Column("bathrooms", sa.Numeric(precision=3, scale=1), nullable=False),
         sa.Column("sqm", sa.Integer(), nullable=True),
-        sa.Column("status", sa.String(length=50), nullable=False),
+        sa.Column("status", sa.Boolean(), nullable=False, server_default="false"),
         sa.Column("active", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("owner_id", sa.UUID(), nullable=True),
         sa.Column("address_id", sa.UUID(), nullable=True),

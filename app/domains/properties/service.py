@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import Optional
@@ -11,11 +12,21 @@ from litestar.params import Parameter
 from litestar.openapi.spec.example import Example
 from litestar.exceptions import ValidationException
 from sqlalchemy.orm import joinedload
+from domains.address.service import AddressService
+from database.models.user import User
+from domains.properties.dtos import (
+    CreatePropertyDTO,
+    CreatePropertySchema,
+    UpdatePropertySchema,
+)
+from domains.image.service import ImageService, provide_image_service
+from domains.supabase.service import SupabaseService, provide_supabase_service
 from database.models.address import Address
 from database.models.property import Property
 from sqlalchemy.ext.asyncio import AsyncSession
 from advanced_alchemy.filters import LimitOffset
 from litestar.pagination import OffsetPagination
+from sqlalchemy.orm import noload
 
 # Vietnam-specific property constants
 VIETNAM_PROPERTY_CATEGORIES = [
@@ -38,6 +49,7 @@ class PropertyOrder(str, Enum):
 
 class PropertyRepository(SQLAlchemyAsyncRepository[Property]):
     model_type = Property
+    loader_options = [noload(User.properties), noload(User.favorites)]
 
 
 class PropertySearchParams(BaseModel):
@@ -140,6 +152,8 @@ class PropertySearchParams(BaseModel):
 class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
     repository_type = PropertyRepository
     default_radius = 10
+    supabase_service: SupabaseService = provide_supabase_service(bucket_name="property")
+    loader_options = [noload(User.properties), noload(User.favorites)]
 
     async def search(
         self,
@@ -233,7 +247,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             offset=pagination.offset,
         )
 
-    async def create(self, data: Property) -> Property:
+    async def create(self, data: CreatePropertySchema, user_id: uuid.UUID) -> Property:
         # Vietnam-specific validation
         if data.transaction_type not in VIETNAM_TRANSACTION_TYPES:
             raise ValidationException(
@@ -243,16 +257,105 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             raise ValidationException(
                 f"Invalid property category. Allowed: {VIETNAM_PROPERTY_CATEGORIES}"
             )
-        return await super().create(data=data, auto_refresh=True, auto_commit=True)
+        data_dict = data.model_dump(
+            exclude={
+                "deleted_images",
+                "image_list",
+                "latitude",
+                "longitude",
+                "city",
+                "street",
+            }
+        )
+        address_service = AddressService(self.repository.session)
+        data_dict["address_id"] = (
+            await address_service.create(
+                {
+                    "latitude": data.latitude,
+                    "longitude": data.longitude,
+                    "city": data.city,
+                    "street": data.street,
+                },
+                auto_commit=False,
+            )
+        ).id
+        data_dict["owner_id"] = user_id
+        property = await super().create(
+            data=data_dict,
+            auto_refresh=True,
+            auto_commit=False,
+        )
+        image_services = ImageService(session=self.repository.session)
+        images = await image_services.create_many(
+            [
+                {
+                    "url": (await self.supabase_service.upload_file(image)),
+                    "model_id": property.id,
+                    "model_type": "property",
+                }
+                for image in data.image_list
+            ],
+            auto_commit=False,
+        )
+        property.images = images
+        await self.repository.session.commit()
+        return property
 
-    async def update(self, item_id: UUID, data: Property) -> Property:
-        # Prevent modification of critical fields
+    async def update(self, item_id: UUID, data: UpdatePropertySchema) -> Property:
+        property = await self.get_one_or_none(Property.id.__eq__(item_id))
+        if not property:
+            raise ValidationException(f"There is not property with id {item_id}")
         restricted_fields = {"transaction_type", "owner_id", "created_at"}
         if any(field in data for field in restricted_fields):
             raise ValidationException("Cannot modify restricted fields")
-        data.updated_at = datetime.utcnow()
+        data_dict = data.model_dump(
+            exclude={
+                "deleted_images",
+                "image_list",
+                "latitude",
+                "longitude",
+                "city",
+                "street",
+            }
+        )
+        if data.latitude:
+            data_dict["address"] = {
+                "latitude": data.latitude,
+                "longitude": data.longitude,
+                "city": data.city,
+                "street": data.street,
+            }
+        image_service = ImageService(session=self.repository.session)
+        data_dict["images"] = property.images
+        if data.deleted_images and len(data.deleted_images) > 0:
+            data_dict["images"] = [
+                image for image in property.images if image.id not in data.delete_images
+            ]
+            image_service.delete_many(data.deleted_images, auto_commit=False)
+            asyncio.gather(
+                *[self.supabase_service.delete_image(id) for id in data.deleted_images]
+            )
+
+        if data.image_list and len(data.image_list) > 0:
+            data_dict["images"].extend(
+                await image_service.create_many(
+                    [
+                        {
+                            "url": (await self.supabase_service.upload_file(image)),
+                            "model_id": property.id,
+                            "model_type": "property",
+                        }
+                        for image in data.image_list
+                    ],
+                    auto_commit=True,
+                )
+            )
         return await super().update(
-            item_id=item_id, data=data, auto_refresh=True, auto_commit=True
+            item_id=item_id,
+            data=data_dict,
+            auto_refresh=True,
+            auto_commit=True,
+            load=[noload(User.properties), noload(User.favorites)],
         )
 
     async def update_activation(
@@ -275,7 +378,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
 async def provide_property_service(
     db_session: AsyncSession,
 ) -> AsyncGenerator[PropertyService]:
-    """This provides the default Authors repository."""
+
     async with PropertyService.new(session=db_session) as service:
         yield service
 

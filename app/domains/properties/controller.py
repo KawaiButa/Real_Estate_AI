@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Annotated, Any
 import uuid
 from litestar import Controller, Request, delete, get, patch, post
 from litestar.di import Provide
@@ -9,12 +9,14 @@ from domains.properties.service import (
     provide_property_service,
     query_params_extractor,
 )
-from database.models.property import Property
+from database.models.property import Property, PropertySchema
 from domains.properties.dtos import (
     CreatePropertyDTO,
     CreatePropertyReturnDTO,
+    CreatePropertySchema,
     PropertySearchReturnDTO,
     UpdatePropertyDTO,
+    UpdatePropertySchema,
     UpdateStatusModel,
 )
 from litestar.dto import DTOData
@@ -26,6 +28,8 @@ from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED
 from advanced_alchemy.filters import LimitOffset
 from litestar.pagination import OffsetPagination
 from domains.auth.guard import GuardRole, login_guard, role_guard
+from litestar.params import Body
+from litestar.enums import RequestEncodingType
 
 
 class PropertyController(Controller):
@@ -54,7 +58,7 @@ class PropertyController(Controller):
     @post(
         "/",
         dto=CreatePropertyDTO,
-        return_dto=CreatePropertyReturnDTO,
+        return_dto=None,
         status_code=HTTP_201_CREATED,
         guards=[
             role_guard([GuardRole.ADMIN, GuardRole.PARTNER]),
@@ -62,10 +66,16 @@ class PropertyController(Controller):
     )
     async def create_property(
         self,
-        data: DTOData[Property],
+        data: Annotated[
+            CreatePropertySchema, Body(media_type=RequestEncodingType.MULTI_PART)
+        ],
         property_service: PropertyService,
-    ) -> Property:
-        return property_service.create(data)
+        request: Request[User, Token, Any],
+    ) -> PropertySchema:
+        return property_service.to_schema(
+            await property_service.create(data, user_id=request.user.id),
+            schema_type=PropertySchema,
+        )
 
     @patch(
         "/{property_id: uuid}",
@@ -79,22 +89,11 @@ class PropertyController(Controller):
     async def update_property(
         self,
         property_id: uuid.UUID,
-        data: DTOData[Property],
+        data: UpdatePropertySchema,
         property_service: PropertyService,
         request: Request[User, Token, Any],
     ) -> Property:
-        property = await property_service.get_one_or_none(
-            Property.id.__eq__(property_id)
-        )
-        if not property:
-            raise ValidationException(f"There is not property with id {property_id}")
-        if (
-            "admin" in [role.name for role in request.user.roles]
-            or property.owner_id is not request.user.id
-        ):
-            raise NotAuthorizedException(f"You are not allowed to update this property")
-        property = data.update_instance(property)
-        return await property_service.update(property_id, property)
+        return await property_service.update(property_id, data)
 
     @delete(
         "/{property_id: uuid}",

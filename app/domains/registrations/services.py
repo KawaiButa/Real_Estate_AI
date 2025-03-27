@@ -121,6 +121,6 @@ class PartnerRegistrationService(SQLAlchemyAsyncRepositoryService[PartnerRegistr
 async def provide_property_service(
     db_session: AsyncSession,
 ) -> AsyncGenerator[PartnerRegistrationService, None]:
-    """This provides the default Authors repository."""
+    
     async with PartnerRegistrationService.new(session=db_session) as service:
         yield service

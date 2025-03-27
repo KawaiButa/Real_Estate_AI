@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Annotated, Any
 import uuid
 from litestar import Controller, Request, Response, get, patch, post
 from litestar.di import Provide
@@ -6,12 +6,19 @@ from database.models.property import Property
 from domains.properties.service import PropertyService, provide_property_service
 from database.models.user import User, UserSchema
 from domains.auth.guard import GuardRole, role_guard
-from domains.profile.dto import ProfileUpdateDTO
+from domains.profile.dto import (
+    ProfileReturnDTO,
+    ProfileUpdateDTO,
+    UpdateUserDTO,
+    UpdateUserSchema,
+)
 from domains.profile.service import ProfileService, provide_profile_service
 from litestar.security.jwt import Token
 from litestar.dto import DTOData
 from litestar.plugins.sqlalchemy import SQLAlchemyDTO
 from litestar.exceptions import ValidationException
+from litestar.params import Body
+from litestar.enums import RequestEncodingType
 
 
 class ProfileController(Controller):
@@ -24,6 +31,7 @@ class ProfileController(Controller):
 
     @get(
         "/",
+        return_dto=ProfileReturnDTO,
     )
     async def get_profile(
         self, profile_service: ProfileService, request: Request[User, Token, Any]
@@ -40,10 +48,12 @@ class ProfileController(Controller):
     ) -> UserSchema:
         return await profile_service.get_profile(user_id=user_id)
 
-    @patch("/")
+    @patch("/", dto=UpdateUserDTO, return_dto=None)
     async def update_profile(
         self,
-        data: DTOData[User],
+        data: Annotated[
+            UpdateUserSchema, Body(media_type=RequestEncodingType.MULTI_PART)
+        ],
         profile_service: ProfileService,
         request: Request[User, Token, Any],
     ) -> UserSchema:
@@ -51,13 +61,18 @@ class ProfileController(Controller):
 
     @patch(
         "/{user_id: uuid}",
-        dto=ProfileUpdateDTO,
-        return_dto=SQLAlchemyDTO[User],
+        dto=UpdateUserDTO,
+        return_dto=None,
         guards=[role_guard([GuardRole.ADMIN])],
         opt={"admin": GuardRole.ADMIN},
     )
-    async def update_profile(
-        self, user_id: uuid.UUID, data: DTOData[User], profile_service: ProfileService
+    async def update_profile_admin(
+        self,
+        user_id: uuid.UUID,
+        data: Annotated[
+            UpdateUserSchema, Body(media_type=RequestEncodingType.MULTI_PART)
+        ],
+        profile_service: ProfileService,
     ) -> UserSchema:
         return await profile_service.update_profile(data=data, user_id=user_id)
 
