@@ -7,6 +7,8 @@ from datetime import date
 from sqlalchemy import Boolean, Enum, String, Date, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import foreign
+from database.models.image import Image, ImageSchema
 from database.models.base import BaseModel, BaseSchema
 from typing import Optional
 
@@ -18,6 +20,7 @@ if TYPE_CHECKING:
 class PartnerType(enum.Enum):
     INDIVIDUAL = "Individual"
     ENTERPRISE = "Enterprise"
+
 
 class PartnerRegistration(BaseModel):
     __tablename__ = "partner_registrations"
@@ -34,14 +37,19 @@ class PartnerRegistration(BaseModel):
     type: Mapped[PartnerType] = mapped_column(
         Enum(PartnerType, name="partnertype"), nullable=False
     )
-
-    profile_url: Mapped[str] = mapped_column(String(255), nullable=True)
     type: Mapped[PartnerType] = mapped_column(Enum(PartnerType), nullable=False)
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
 
-    # Corporate Credentials (for corporate partners)
-    business_registration_certificate_url: Mapped[str] = mapped_column(
-        String(255), nullable=True
+    business_registration_certificate_images: Mapped[list[Image]] = relationship(
+        "Image",
+        primaryjoin=(
+            "and_(foreign(Image.model_id) == PartnerRegistration.id, "
+            "Image.model_type == 'partner_registration')"
+        ),
+        foreign_keys=[foreign(Image.model_id)],
+        remote_side=[Image.model_id],
+        backref="partner_registration",
+        lazy="dynamic",
     )
     tax_id: Mapped[str] = mapped_column(String(100), nullable=True)
     authorized_representative_name: Mapped[str] = mapped_column(
@@ -57,9 +65,9 @@ class PartnerRegistrationSchema(BaseSchema):
     user_id: Optional[uuid.UUID] = None
     user: Optional["UserSchema"] = None
     date_of_birth: date
-    profile_url: Optional[str] = None
+    profile_image: Optional[ImageSchema] = None
     type: PartnerType
-    business_registration_certificate_url: Optional[str] = None
+    business_registration_certificate_images: list[ImageSchema] = []
     tax_id: Optional[str] = None
     authorized_representative_name: Optional[str] = None
     approved: Optional[bool] = False

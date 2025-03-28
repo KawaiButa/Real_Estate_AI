@@ -19,7 +19,6 @@ from litestar.dto import DTOData
 from domains.auth.dtos import LoginReturnSchema, RegisterReturnModel
 from security.oauth2 import oauth2_auth
 from database.models.role import Role
-from sqlalchemy.orm import selectinload
 
 
 class AuthService(SQLAlchemyAsyncRepositoryService[User]):

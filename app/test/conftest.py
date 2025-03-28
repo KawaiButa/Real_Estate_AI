@@ -9,7 +9,7 @@ import app
 
 if TYPE_CHECKING:
     from litestar import Litestar
-app.debug = True
+debug = True
 @pytest.fixture(scope="function")
 async def test_client() -> AsyncIterator[AsyncTestClient[Litestar]]:
     async with AsyncTestClient(app=app) as client:

@@ -12,6 +12,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from database.models.image import Image, ImageSchema
+from database.models.tag import Tag, TagSchema
 from database.models.partner_registration import (
     PartnerRegistration,
     PartnerRegistrationSchema,
@@ -24,7 +26,16 @@ from database.models.property import Favorite, Property, PropertySchema
 from litestar.dto import dto_field
 
 
-@dataclass
+class UserTag(BaseModel):
+    __tablename__ = "user_tags"
+    user_id: Mapped[PG_UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id"), primary_key=False
+    )
+    tag_id: Mapped[PG_UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("tags.id"), primary_key=False
+    )
+
+
 class User(BaseModel):
     __tablename__ = "users"
     name: Mapped[str] = mapped_column(String(255), unique=False, nullable=False)
@@ -40,8 +51,14 @@ class User(BaseModel):
         unique=True,
         nullable=True,
     )
+    image_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("images.id", ondelete="SET NULL"),
+        nullable=True,
+        unique=True,
+    )
     device_token: Mapped[Optional[str]] = mapped_column(
-        String(255), unique=True, nullable=True, default=None, server_default="NULL"
+        String(255), unique=True, nullable=True, default=None
     )
     reset_password_token: Mapped[Optional[str]] = mapped_column(
         String(64), nullable=True, info=dto_field("private")
@@ -49,23 +66,33 @@ class User(BaseModel):
     reset_password_expires: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), nullable=True, info=dto_field("private")
     )
+    profile_image: Mapped[Optional["Image"]] = relationship(
+        "Image",
+        lazy="selectin",
+        uselist=False,
+    )
     # Relationships
     address: Mapped[Optional["Address"]] = relationship(
-        "Address", back_populates="user", uselist=False, lazy="selectin"
+        "Address", uselist=False, lazy="selectin"
     )
     roles: Mapped[list["Role"]] = relationship(
         "Role", secondary=UserRole.__table__, lazy="selectin"
     )
     properties: Mapped[list["Property"]] = relationship(
-        "Property", back_populates="owner", lazy="selectin"
+        "Property", back_populates="owner", lazy="noload"
     )
     partner_registration: Mapped[PartnerRegistration | None] = relationship(
-        "PartnerRegistration", back_populates="user", lazy="joined"
+        "PartnerRegistration",
+        back_populates="user",
+        lazy="joined",
     )
     favorites: Mapped[list[Property]] = relationship(
         "Property",
         secondary=Favorite.__table__,
-        lazy="selectin",
+        lazy="noload",
+    )
+    tags: Mapped[list[Tag]] = relationship(
+        "Tag", secondary=UserTag.__table__, lazy="selectin"
     )
 
 
@@ -76,12 +103,14 @@ class UserSchema(BaseSchema):
     verified: bool
     address_id: Optional[uuid.UUID] = None
     device_token: Optional[str] = None
+    profile_image: Optional[ImageSchema] = None
     # Relationships
     address: Optional[AddressSchema] = None
     roles: list[RoleSchema]
-    properties: list[PropertySchema]
+    properties: Optional[list[PropertySchema]]
     registration: Optional[PartnerRegistrationSchema] = None
-    favorites: list[PropertySchema]
+    favorites: Optional[list[PropertySchema]]
+    tags: list[TagSchema]
 
 
 UserSchema.model_rebuild()
