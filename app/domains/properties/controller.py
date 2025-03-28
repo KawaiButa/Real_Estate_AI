@@ -30,6 +30,7 @@ from litestar.pagination import OffsetPagination
 from domains.auth.guard import GuardRole, login_guard, role_guard
 from litestar.params import Body
 from litestar.enums import RequestEncodingType
+from sqlalchemy.orm import lazyload
 
 
 class PropertyController(Controller):
@@ -80,7 +81,7 @@ class PropertyController(Controller):
     @patch(
         "/{property_id: uuid}",
         dto=UpdatePropertyDTO,
-        return_dto=SQLAlchemyDTO[Property],
+        return_dto=None,
         status_code=HTTP_200_OK,
         guards=[
             role_guard([GuardRole.ADMIN, GuardRole.PARTNER]),
@@ -89,11 +90,20 @@ class PropertyController(Controller):
     async def update_property(
         self,
         property_id: uuid.UUID,
-        data: UpdatePropertySchema,
+        data: Annotated[
+            UpdatePropertySchema, Body(media_type=RequestEncodingType.MULTI_PART)
+        ],
         property_service: PropertyService,
         request: Request[User, Token, Any],
-    ) -> Property:
-        return await property_service.update(property_id, data)
+    ) -> PropertySchema:
+        if not "admin" in [role["name"] for role in request.user.roles]:
+            user_id = request.user.id
+        else:
+            user_id = None
+        return property_service.to_schema(
+            await property_service.update(property_id, data=data, user_id=user_id),
+            schema_type=PropertySchema,
+        )
 
     @delete(
         "/{property_id: uuid}",
@@ -107,17 +117,23 @@ class PropertyController(Controller):
         property_service: PropertyService,
         request: Request[User, Token, Any],
     ) -> None:
+        property_service.repository.merge_loader_options = False
         property = await property_service.get_one_or_none(
-            Property.id.__eq__(property_id)
+            Property.id.__eq__(property_id), load=[lazyload("*")]
         )
         if not property:
-            raise ValidationException(f"There is not property with id {property_id}")
-        if (
-            "admin" in [role.name for role in request.user.roles]
-            or property.owner_id is not request.user.id
+            raise ValidationException(f"There is no property with id {property_id}")
+
+        if not (
+            "admin" in [role["name"] for role in request.user.roles]
+            or property.owner_id == request.user.id
         ):
-            raise NotAuthorizedException(f"You are not allowed to update this property")
-        return await property_service.delete(item_id=property_id, auto_commit=True)
+            raise NotAuthorizedException(f"You are not allowed to delete this property")
+
+        await property_service.delete(
+            item_id=property_id, auto_commit=True, load=[lazyload("*")]
+        )
+        return
 
     @post(
         "/{property_id: uuid}/status",

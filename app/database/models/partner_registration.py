@@ -37,13 +37,6 @@ class PartnerRegistration(BaseModel):
     type: Mapped[PartnerType] = mapped_column(
         Enum(PartnerType, name="partnertype"), nullable=False
     )
-    profile_image_id: Mapped[Optional[uuid.UUID]] = mapped_column(
-        PG_UUID(as_uuid=True),
-        ForeignKey("images.id", ondelete="SET NULL"),
-        nullable=True,
-        default=None,
-    )
-    profile_url: Mapped[Optional[Image]] = relationship("Image", lazy="selectin")
     type: Mapped[PartnerType] = mapped_column(Enum(PartnerType), nullable=False)
     date_of_birth: Mapped[date | None] = mapped_column(Date, nullable=True)
 

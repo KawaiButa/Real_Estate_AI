@@ -10,8 +10,8 @@ from pydantic import BaseModel, ValidationInfo, field_validator
 from sqlalchemy import Enum, asc, desc, func, select
 from litestar.params import Parameter
 from litestar.openapi.spec.example import Example
-from litestar.exceptions import ValidationException
-from sqlalchemy.orm import joinedload
+from litestar.exceptions import ValidationException, NotAuthorizedException
+from sqlalchemy.orm import joinedload, selectinload
 from domains.address.service import AddressService
 from database.models.user import User
 from domains.properties.dtos import (
@@ -49,7 +49,6 @@ class PropertyOrder(str, Enum):
 
 class PropertyRepository(SQLAlchemyAsyncRepository[Property]):
     model_type = Property
-    loader_options = [noload(User.properties), noload(User.favorites)]
 
 
 class PropertySearchParams(BaseModel):
@@ -153,19 +152,16 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
     repository_type = PropertyRepository
     default_radius = 10
     supabase_service: SupabaseService = provide_supabase_service(bucket_name="property")
-    loader_options = [noload(User.properties), noload(User.favorites)]
 
     async def search(
         self,
         search_param: PropertySearchParams,
         pagination: LimitOffset,
     ) -> OffsetPagination[Property]:
-        # Build base query with relationships
         query = select(Property).options(
             joinedload(Property.address), joinedload(Property.owner)
         )
 
-        # Apply geospatial filter
         if search_param.lat and search_param.lng:
             point = func.ST_SetSRID(
                 func.ST_MakePoint(search_param.lng, search_param.lat), 4326
@@ -269,13 +265,12 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         )
         address_service = AddressService(self.repository.session)
         data_dict["address_id"] = (
-            await address_service.create(
-                {
-                    "latitude": data.latitude,
-                    "longitude": data.longitude,
-                    "city": data.city,
-                    "street": data.street,
-                },
+            await address_service.create_address(
+                latitude=data.latitude,
+                longitude=data.longitude,
+                street=data.street,
+                city=data.city,
+                neighborhood=data.neighborhood,
                 auto_commit=False,
             )
         ).id
@@ -301,8 +296,17 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         await self.repository.session.commit()
         return property
 
-    async def update(self, item_id: UUID, data: UpdatePropertySchema) -> Property:
-        property = await self.get_one_or_none(Property.id.__eq__(item_id))
+    async def update(
+        self,
+        item_id: UUID,
+        data: UpdatePropertySchema,
+        user_id: uuid.UUID | None = None,
+    ) -> Property:
+        property = await self.get_one_or_none(
+            Property.id.__eq__(item_id),
+        )
+        if user_id and property.owner_id != user_id:
+            raise NotAuthorizedException(f"You are not allowed to delete this property")
         if not property:
             raise ValidationException(f"There is not property with id {item_id}")
         restricted_fields = {"transaction_type", "owner_id", "created_at"}
@@ -351,11 +355,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
                 )
             )
         return await super().update(
-            item_id=item_id,
-            data=data_dict,
-            auto_refresh=True,
-            auto_commit=True,
-            load=[noload(User.properties), noload(User.favorites)],
+            item_id=item_id, data=data_dict, auto_refresh=True, auto_commit=True
         )
 
     async def update_activation(

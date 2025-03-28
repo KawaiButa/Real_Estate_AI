@@ -4,6 +4,7 @@ from litestar.exceptions import ValidationException
 from litestar import Litestar, MediaType, Request, Response, get
 from litestar.types import ControllerRouterHandler
 from litestar.plugins.sqlalchemy import SQLAlchemyPlugin
+from domains.news.controller import ArticleController
 from domains.admin.controller import AdminController
 from domains.profile.controller import ProfileController
 from domains.registrations.controller import PartnerRegistrationController
@@ -69,6 +70,7 @@ routes: list[ControllerRouterHandler] = [
     PropertyController,
     PartnerRegistrationController,
     ProfileController,
+    ArticleController,
     PrometheusController,
     AdminController,
     schema,
@@ -83,7 +85,6 @@ routes: list[ControllerRouterHandler] = [
 ]
 prometheus_config = PrometheusConfig(group_path=False)
 structlog_plugin = StructlogPlugin()
-
 app = Litestar(
     route_handlers=routes,
     openapi_config=openapi.config,

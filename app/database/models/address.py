@@ -32,7 +32,7 @@ class Address(BaseModel):
     latitude: Mapped[float | None] = mapped_column(Numeric(12, 9), nullable=False)
     longitude: Mapped[float | None] = mapped_column(Numeric(12, 9), nullable=False)
     coordinates: Mapped[str | None] = mapped_column(
-        Geography("POINT", srid=4326), nullable=True, info=dto_field(mark="read-only")
+        Geography("POINT", srid=4326), nullable=True, info=dto_field(mark="private")
     )
     geohash: Mapped[str | None] = mapped_column(
         Text, nullable=True, default=None, info=dto_field(mark="private")
@@ -45,5 +45,3 @@ class AddressSchema(BaseSchema):
     neighborhood: Optional[str]
     latitude: float
     longitude: float
-    coordinates: Optional[str]
-    geohash: Optional[str]

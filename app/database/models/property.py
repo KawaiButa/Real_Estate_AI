@@ -85,7 +85,7 @@ class Property(BaseModel):
         "User", back_populates="properties", lazy="joined"
     )
     address: Mapped["Address"] = relationship(
-        "Address", uselist=False, lazy="joined"
+        "Address", uselist=False, lazy="selectin"
     )
     tags: Mapped[list[Tag]] = relationship(
         "Tag", secondary=PropertyTag.__table__, lazy="selectin"
