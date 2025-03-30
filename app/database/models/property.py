@@ -53,6 +53,7 @@ class Property(BaseModel):
     bedrooms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     bathrooms: Mapped[float] = mapped_column(Numeric(3, 1), default=0, nullable=False)
     sqm: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    description: Mapped[str] = mapped_column(String(), nullable=False)
     status: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default="false"
     )
@@ -84,9 +85,7 @@ class Property(BaseModel):
     owner: Mapped["User"] = relationship(
         "User", back_populates="properties", lazy="joined"
     )
-    address: Mapped["Address"] = relationship(
-        "Address", uselist=False, lazy="selectin"
-    )
+    address: Mapped["Address"] = relationship("Address", uselist=False, lazy="selectin")
     tags: Mapped[list[Tag]] = relationship(
         "Tag", secondary=PropertyTag.__table__, lazy="selectin"
     )
@@ -100,6 +99,7 @@ class PropertySchema(BaseSchema):
     bedrooms: float
     bathrooms: float
     sqm: int
+    description: str
     status: str
     owner_id: uuid.UUID
     address_id: uuid.UUID | None

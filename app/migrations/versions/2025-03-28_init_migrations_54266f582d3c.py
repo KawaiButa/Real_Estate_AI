@@ -9,7 +9,7 @@ Create Date: 2025-03-28 00:38:36.733896
 
 import warnings
 from typing import TYPE_CHECKING
-
+import datetime
 import sqlalchemy as sa
 from alembic import op
 from advanced_alchemy.types import EncryptedString, EncryptedText, GUID, ORA_JSONB, DateTimeUTC
@@ -273,7 +273,43 @@ def schema_downgrades() -> None:
     # ### end Alembic commands ###
 
 def data_upgrades() -> None:
-    """Add any optional data upgrade migrations here!"""
+    now = datetime.datetime.now(datetime.timezone.utc)
+    roles_table = sa.table(
+        "roles",
+        sa.column("id", sa.UUID()),
+        sa.column("name", sa.String(length=50)),
+        sa.column("slug", sa.String(length=100)),
+        sa.column("created_at", sa.DateTime(timezone=True)),
+        sa.column("updated_at", sa.DateTime(timezone=True)),
+    )
+    import uuid
+
+    op.bulk_insert(
+        roles_table,
+        [
+            {
+                "id": uuid.UUID("550e8400-e29b-41d4-a716-446655440000"),
+                "name": "admin",
+                "slug": "admin",
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": uuid.UUID("f47ac10b-58cc-4372-a567-0e02b2c3d479"),
+                "name": "partner",
+                "slug": "partner",
+                "created_at": now,
+                "updated_at": now,
+            },
+            {
+                "id": uuid.UUID("9d3c5f77-a6a3-4f3e-8c21-3d9a5e6b7f2c"),
+                "name": "customer",
+                "slug": "customer",
+                "created_at": now,
+                "updated_at": now,
+            },
+        ],
+    )
 
 def data_downgrades() -> None:
     """Add any optional data downgrade migrations here!"""
