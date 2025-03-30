@@ -99,7 +99,7 @@ app = Litestar(
     openapi_config=openapi.config,
     dependencies={"transaction": Provide(provide_transaction, sync_to_thread=True)},
     on_app_init=[oauth2_auth.on_app_init],
-    on_startup=[on_startUp],
+    # on_startup=[on_startUp],
     debug=os.environ.get("ENVIRONMENT") == "dev",
     exception_handlers={
         ValidationException: validation_exception_handler,
