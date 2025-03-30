@@ -49,9 +49,9 @@ class Property(BaseModel):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     property_category: Mapped[str] = mapped_column(String(50), nullable=False)
     transaction_type: Mapped[str] = mapped_column(String(50), nullable=False)
-    price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
+    price: Mapped[float] = mapped_column(Numeric(12, 2, asdecimal=False), nullable=False)
     bedrooms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    bathrooms: Mapped[float] = mapped_column(Numeric(3, 1), default=0, nullable=False)
+    bathrooms: Mapped[int] = mapped_column(Numeric(3, 1), default=0, nullable=False)
     sqm: Mapped[int | None] = mapped_column(Integer, nullable=True)
     description: Mapped[str] = mapped_column(String(), nullable=False)
     status: Mapped[bool] = mapped_column(
@@ -96,8 +96,8 @@ class PropertySchema(BaseSchema):
     property_category: str
     transaction_type: str
     price: float
-    bedrooms: float
-    bathrooms: float
+    bedrooms: int
+    bathrooms: int
     sqm: int
     description: str
     status: str
