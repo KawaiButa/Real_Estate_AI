@@ -31,6 +31,7 @@ class CreatePropertySchema(BaseModel):
     latitude: float
     longitude: float
     street: str
+    description: str
     city: str
     neighborhood: Optional[str]
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -70,6 +71,7 @@ class UpdatePropertySchema(BaseModel):
     bedrooms: Optional[float]
     bathrooms: Optional[float]
     sqm: Optional[int]
+    description: Optional[str]
     latitude: Optional[float]
     longitude: Optional[float]
     street: Optional[str]

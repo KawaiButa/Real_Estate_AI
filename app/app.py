@@ -4,6 +4,11 @@ from litestar.exceptions import ValidationException
 from litestar import Litestar, MediaType, Request, Response, get
 from litestar.types import ControllerRouterHandler
 from litestar.plugins.sqlalchemy import SQLAlchemyPlugin
+from seed.factories.image import ImageFactory
+from seed.factories.partner_registration import PartnerRegistrationFactory
+from seed.factories.property import PropertyFactory
+from seed.factories.address import AddressFactory
+from seed.seed import Seeder
 from domains.news.controller import ArticleController
 from domains.admin.controller import AdminController
 from domains.profile.controller import ProfileController
@@ -20,7 +25,7 @@ from litestar.plugins.structlog import StructlogPlugin, StructlogConfig
 from litestar.plugins.prometheus import PrometheusConfig, PrometheusController
 from litestar.static_files import create_static_files_router
 from configs.template import template_config
-
+from seed.factories.user import UserFactory
 load_dotenv()
 
 
@@ -85,11 +90,16 @@ routes: list[ControllerRouterHandler] = [
 ]
 prometheus_config = PrometheusConfig(group_path=False)
 structlog_plugin = StructlogPlugin()
+seeder = Seeder()
+async def on_startUp() -> None:
+    await seeder.seed_all(factory_classes = [(AddressFactory, 1000), (UserFactory, 20), (PartnerRegistrationFactory, 20), (PropertyFactory, 100), (ImageFactory, None)])
+    return
 app = Litestar(
     route_handlers=routes,
     openapi_config=openapi.config,
     dependencies={"transaction": Provide(provide_transaction, sync_to_thread=True)},
     on_app_init=[oauth2_auth.on_app_init],
+    on_startup=[on_startUp],
     debug=os.environ.get("ENVIRONMENT") == "dev",
     exception_handlers={
         ValidationException: validation_exception_handler,
