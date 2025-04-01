@@ -130,8 +130,8 @@ class PropertyFactory(BaseFactory):
                     )
                     price = round(random.uniform(50000, 500000), 2)
                     bedrooms = random.randint(1, 5)
-                    bathrooms = random.choice([1.0, 1.5, 2.0, 2.5, 3.0])
-                    sqm = random.randint(20, 500)
+                    bathrooms = random.randint(1, 5)
+                    sqm = round(random.uniform(1.0, 1000.0), 2)
                     status = random.choice([True, False])
                     active = True
                     description = generate_html_description(

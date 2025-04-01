@@ -52,7 +52,7 @@ def generate_precise_address() -> dict:
     )
     try:
         response = client.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # Using GPT-3.5 Turbo for free generation
+            model="gpt-4o-mini",  # Using GPT-3.5 Turbo for free generation
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
             max_tokens=150,

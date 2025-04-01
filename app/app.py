@@ -26,6 +26,8 @@ from litestar.plugins.prometheus import PrometheusConfig, PrometheusController
 from litestar.static_files import create_static_files_router
 from configs.template import template_config
 from seed.factories.user import UserFactory
+from seed.factories.article import ArticleFactory
+
 load_dotenv()
 
 
@@ -91,9 +93,22 @@ routes: list[ControllerRouterHandler] = [
 prometheus_config = PrometheusConfig(group_path=False)
 structlog_plugin = StructlogPlugin()
 seeder = Seeder()
+
+
 async def on_startUp() -> None:
-    await seeder.seed_all(factory_classes = [(AddressFactory, 1000), (UserFactory, 20), (PartnerRegistrationFactory, 20), (PropertyFactory, 100), (ImageFactory, None)])
+    await seeder.seed_all(
+        factory_classes=[
+            (AddressFactory, 1000),
+            (UserFactory, 20),
+            (PartnerRegistrationFactory, 20),
+            (PropertyFactory, 100),
+            (ImageFactory, None),
+            (ArticleFactory, 200),
+        ]
+    )
     return
+
+
 app = Litestar(
     route_handlers=routes,
     openapi_config=openapi.config,

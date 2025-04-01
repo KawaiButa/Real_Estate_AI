@@ -56,19 +56,16 @@ class PropertySearchParams(BaseModel):
         None,
         title="Latitude",
         description="Latitude of search center (Vietnam coordinates)",
-        examples=[Example(value=10.8231, summary="Hanoi Latitude")],
     )
     lng: Optional[float] = Parameter(
         None,
         title="Longitude",
         description="Longitude of search center (Vietnam coordinates)",
-        examples=[Example(value=106.6297, summary="HCMC Longitude")],
     )
     radius: Optional[float] = Parameter(
         10.0,
         title="Search Radius",
         description="Radius in kilometers for location-based search",
-        examples=[Example(value=5.0)],
     )
 
     # Core property filters
@@ -76,13 +73,11 @@ class PropertySearchParams(BaseModel):
         None,
         title="Minimum Price",
         description="Minimum price in VND million",
-        examples=[Example(value=500)],
     )
     max_price: Optional[float] = Parameter(
         None,
         title="Maximum Price",
         description="Maximum price in VND million",
-        examples=[Example(value=5000)],
     )
     property_category: Optional[str] = Parameter(
         None,
@@ -95,13 +90,19 @@ class PropertySearchParams(BaseModel):
         description=f"Allowed values: {', '.join(VIETNAM_TRANSACTION_TYPES)}",
     )
     min_bedrooms: Optional[int] = Parameter(
-        None, title="Minimum Bedrooms", gt=1, examples=[Example(value=2)]
+        None,
+        title="Minimum Bedrooms",
+        gt=1,
     )
     min_bathrooms: Optional[int] = Parameter(
-        None, title="Minimum Bathrooms", gt=1, examples=[Example(value=2)]
+        None,
+        title="Minimum Bathrooms",
+        gt=1,
     )
     min_sqm: Optional[int] = Parameter(
-        None, title="Minimum Area (sqm)", gt=20, examples=[Example(value=50)]
+        None,
+        title="Minimum Area (sqm)",
+        gt=20,
     )
     status: Optional[str] = Parameter(
         None, description=f"Property status: {', '.join(VIETNAM_PROPERTY_STATUSES)}"
@@ -388,32 +389,27 @@ async def query_params_extractor(
         None,
         title="Latitude",
         description="Latitude of search center (Vietnam coordinates)",
-        examples=[Example(value=10.8231, summary="Hanoi Latitude")],
     ),
     lng: Optional[float] = Parameter(
         None,
         title="Longitude",
         description="Longitude of search center (Vietnam coordinates)",
-        examples=[Example(value=106.6297, summary="HCMC Longitude")],
     ),
     radius: Optional[float] = Parameter(
         10.0,
         title="Search Radius",
         description="Radius in kilometers for location-based search",
-        examples=[Example(value=5.0)],
     ),
     # Core property filters
     min_price: Optional[float] = Parameter(
         None,
         title="Minimum Price",
         description="Minimum price in VND million",
-        examples=[Example(value=500)],
     ),
     max_price: Optional[float] = Parameter(
         None,
         title="Maximum Price",
         description="Maximum price in VND million",
-        examples=[Example(value=5000)],
     ),
     property_category: Optional[str] = Parameter(
         None,
@@ -426,13 +422,19 @@ async def query_params_extractor(
         description=f"Allowed values: {', '.join(VIETNAM_TRANSACTION_TYPES)}",
     ),
     min_bedrooms: Optional[int] = Parameter(
-        None, title="Minimum Bedrooms", gt=1, examples=[Example(value=2)]
+        None,
+        title="Minimum Bedrooms",
+        gt=1,
     ),
     min_bathrooms: Optional[int] = Parameter(
-        None, title="Minimum Bathrooms", gt=1, examples=[Example(value=2)]
+        None,
+        title="Minimum Bathrooms",
+        gt=1,
     ),
     min_sqm: Optional[int] = Parameter(
-        None, title="Minimum Area (sqm)", gt=20, examples=[Example(value=50)]
+        None,
+        title="Minimum Area (sqm)",
+        gt=20,
     ),
     status: Optional[str] = Parameter(
         None, description=f"Property status: {', '.join(VIETNAM_PROPERTY_STATUSES)}"
