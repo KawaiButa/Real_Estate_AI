@@ -54,10 +54,10 @@ class Property(BaseModel):
     )
     bedrooms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     bathrooms: Mapped[int] = mapped_column(Numeric(3, 1), default=0, nullable=False)
-    sqm: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False)
+    sqm: Mapped[float] = mapped_column(Numeric(6, 2, asdecimal=False), nullable=False,)
     description: Mapped[str] = mapped_column(String(), nullable=False)
     status: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false"
+        Boolean, nullable=False, default=False, server_default="false",
     )
     images: Mapped[list[Image]] = relationship(
         "Image",
