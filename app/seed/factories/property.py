@@ -1,6 +1,7 @@
 import random
 from faker import Faker
 from sqlalchemy import select
+from database.models.property_type import PropertyType
 from database.models.role import Role
 from domains.properties.service import (
     VIETNAM_PROPERTY_CATEGORIES,
@@ -13,6 +14,7 @@ from database.models.property import Property
 from database.models.user import User
 from database.models.address import Address
 from configs.sqlalchemy import sqlalchemy_config
+from advanced_alchemy.utils.text import slugify
 
 fake = Faker("vi_VN")
 client = OpenAI()
@@ -124,6 +126,13 @@ class PropertyFactory(BaseFactory):
                     address_id = address.id
                     addresses.remove(address)
                     property_category = random.choice(VIETNAM_PROPERTY_CATEGORIES)
+                    property_type_id = (
+                        await PropertyType.as_unique_async(
+                            session=session,
+                            name=property_category,
+                            slug=slugify(property_category),
+                        )
+                    ).id
                     transaction_type = random.choice(VIETNAM_TRANSACTION_TYPES)
                     title = generate_title(
                         property_category, transaction_type, address.city
@@ -150,6 +159,7 @@ class PropertyFactory(BaseFactory):
                         price=price,
                         bedrooms=bedrooms,
                         bathrooms=bathrooms,
+                        property_type_id=property_type_id,
                         sqm=sqm,
                         status=status,
                         description=description,

@@ -12,6 +12,7 @@ from litestar.params import Parameter
 from litestar.openapi.spec.example import Example
 from litestar.exceptions import ValidationException, NotAuthorizedException
 from sqlalchemy.orm import joinedload, selectinload
+from database.models.property_type import PropertyType
 from domains.address.service import AddressService
 from database.models.user import User
 from domains.properties.dtos import (
@@ -27,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from advanced_alchemy.filters import LimitOffset
 from litestar.pagination import OffsetPagination
 from sqlalchemy.orm import noload
+from advanced_alchemy.utils.text import slugify
 
 # Vietnam-specific property constants
 VIETNAM_PROPERTY_CATEGORIES = [
@@ -273,6 +275,13 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
                 city=data.city,
                 neighborhood=data.neighborhood,
                 auto_commit=False,
+            )
+        ).id
+        data_dict["property_type_id"] = (
+            await PropertyType.as_unique_async(
+                session=self.repository.session,
+                name=data.property_category,
+                slug=slugify(data.property_category),
             )
         ).id
         data_dict["owner_id"] = user_id

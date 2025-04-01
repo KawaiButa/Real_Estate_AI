@@ -4,6 +4,7 @@ from litestar.exceptions import ValidationException
 from litestar import Litestar, MediaType, Request, Response, get
 from litestar.types import ControllerRouterHandler
 from litestar.plugins.sqlalchemy import SQLAlchemyPlugin
+from domains.property_types.controller import PropertyTypeController
 from seed.factories.image import ImageFactory
 from seed.factories.partner_registration import PartnerRegistrationFactory
 from seed.factories.property import PropertyFactory
@@ -80,6 +81,7 @@ routes: list[ControllerRouterHandler] = [
     ArticleController,
     PrometheusController,
     AdminController,
+    PropertyTypeController,
     schema,
     helloWorld,
     create_static_files_router(
@@ -103,7 +105,7 @@ async def on_startUp() -> None:
             (PartnerRegistrationFactory, 20),
             (PropertyFactory, 100),
             (ImageFactory, None),
-            (ArticleFactory, 200),
+            # (ArticleFactory, 200),
         ]
     )
     return
@@ -114,7 +116,7 @@ app = Litestar(
     openapi_config=openapi.config,
     dependencies={"transaction": Provide(provide_transaction, sync_to_thread=True)},
     on_app_init=[oauth2_auth.on_app_init],
-    # on_startup=[on_startUp],
+    on_startup=[on_startUp],
     debug=os.environ.get("ENVIRONMENT") == "dev",
     exception_handlers={
         ValidationException: validation_exception_handler,

@@ -12,6 +12,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from database.models.property_type import PropertyType, PropertyTypeSchema
 from database.models.base import BaseModel, BaseSchema
 from database.models.image import Image, ImageSchema
 from sqlalchemy.orm import foreign, relationship, Mapped
@@ -48,16 +49,28 @@ class Property(BaseModel):
     __tablename__ = "properties"
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     property_category: Mapped[str] = mapped_column(String(50), nullable=False)
+    property_type_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("property_types.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    property_type: Mapped[PropertyType] = relationship("PropertyType", lazy="selectin")
     transaction_type: Mapped[str] = mapped_column(String(50), nullable=False)
     price: Mapped[float] = mapped_column(
         Numeric(12, 2, asdecimal=False), nullable=False
     )
     bedrooms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     bathrooms: Mapped[int] = mapped_column(Numeric(3, 1), default=0, nullable=False)
-    sqm: Mapped[float] = mapped_column(Numeric(6, 2, asdecimal=False), nullable=False,)
+    sqm: Mapped[float] = mapped_column(
+        Numeric(6, 2, asdecimal=False),
+        nullable=False,
+    )
     description: Mapped[str] = mapped_column(String(), nullable=False)
     status: Mapped[bool] = mapped_column(
-        Boolean, nullable=False, default=False, server_default="false",
+        Boolean,
+        nullable=False,
+        default=False,
+        server_default="false",
     )
     images: Mapped[list[Image]] = relationship(
         "Image",
@@ -96,6 +109,8 @@ class Property(BaseModel):
 class PropertySchema(BaseSchema):
     title: str
     property_category: str
+    property_type_id: str
+    property_type: PropertyTypeSchema
     transaction_type: str
     price: float
     bedrooms: int
