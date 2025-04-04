@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import AsyncGenerator
+from domains.auth.dtos import LoginReturnSchema
 from domains.supabase.service import SupabaseService, provide_supabase_service
 from domains.profile.dto import UpdateUserSchema
 from database.models.property import Property
@@ -9,7 +10,7 @@ from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy.ext.asyncio import AsyncSession
 from litestar.exceptions import ValidationException
 from sqlalchemy.orm import selectinload, noload
-
+from security.oauth2 import oauth2_auth
 
 class ProfileService(SQLAlchemyAsyncRepositoryService[User]):
     repository_type = UserRepository
@@ -79,6 +80,28 @@ class ProfileService(SQLAlchemyAsyncRepositoryService[User]):
             user.favorites.append(property)
         await self.update(data=user, item_id=user_id)
         return True
+    async def refresh_token(self, user_id: uuid) -> LoginReturnSchema:
+        user = await self.get_one_or_none(User.id == user_id)
+        if not user:
+            raise ValidationException("Invalid credential")
+        return LoginReturnSchema(
+            token=oauth2_auth.create_token(
+                identifier=str(
+                    {
+                        "id": str(user.id),
+                        "name": user.name,
+                        "roles": [
+                            {
+                                "id": str(user.id),
+                                "name": role.name,
+                            }
+                            for role in user.roles
+                        ],
+                    }
+                ),
+            ),
+            user=self.to_schema(data=user, schema_type=UserSchema),
+        )
 
 
 async def provide_profile_service(

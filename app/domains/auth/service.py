@@ -143,30 +143,6 @@ class AuthService(SQLAlchemyAsyncRepositoryService[User]):
         user = await self.update(user, auto_commit=True, auto_refresh=True)
         return user
 
-    async def refresh_token(self, user_id: uuid) -> LoginReturnSchema:
-        user = await self.get_one_or_none(User.id == user_id)
-        if not user:
-            raise ValidationException("Invalid credential")
-        return LoginReturnSchema(
-            token=oauth2_auth.create_token(
-                identifier=str(
-                    {
-                        "id": str(user.id),
-                        "name": user.name,
-                        "roles": [
-                            {
-                                "id": str(user.id),
-                                "name": role.name,
-                            }
-                            for role in user.roles
-                        ],
-                    }
-                ),
-            ),
-            user=self.to_schema(data=user, schema_type=UserSchema),
-        )
-
-
 async def provide_auth_service(
     db_session: AsyncSession,
 ) -> AsyncGenerator[AuthService, None]:

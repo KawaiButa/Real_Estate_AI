@@ -60,8 +60,9 @@ class PartnerRegistrationService(SQLAlchemyAsyncRepositoryService[PartnerRegistr
         data = data.model_dump()
         data["approved"] = True
         partner_registration = await self.create(
-            data=data, auto_commit=True, auto_refresh=True
+            data=data, auto_refresh=True
         )
+        await self.approve_registration(user_id)
         return await self.get_one(PartnerRegistration.id == partner_registration.id)
 
     async def get_registration_by_user_id(

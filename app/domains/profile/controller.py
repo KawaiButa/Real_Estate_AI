@@ -2,6 +2,7 @@ from typing import Annotated, Any
 import uuid
 from litestar import Controller, Request, Response, get, patch, post
 from litestar.di import Provide
+from domains.auth.dtos import LoginReturnSchema
 from database.models.property import Property
 from domains.properties.service import PropertyService, provide_property_service
 from database.models.user import User, UserSchema
@@ -112,3 +113,8 @@ class ProfileController(Controller):
             raise ValidationException(f"No property found with id {property_id}")
         await profile_service.toggle_favorite(user_id=user_id, property=property)
         return Response(content="Update favorite successfully", status_code=200)
+    @get("/refresh-token")
+    async def refresh_token(
+        self, profile_service: ProfileService, request: Request[User, Token, Any]
+    ) -> LoginReturnSchema:
+        return await profile_service.refresh_token(user_id=request.user.id)

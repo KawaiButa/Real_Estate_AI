@@ -91,9 +91,3 @@ class AuthController(Controller):
             token=data.token, new_password=data.new_password
         )
         return "Reset password successfully"
-
-    @get("/refresh-token")
-    async def refresh_token(
-        self, auth_service: AuthService, request: Request[User, Token, Any]
-    ):
-        return await auth_service.refresh_token(user_id=request.user.id)
