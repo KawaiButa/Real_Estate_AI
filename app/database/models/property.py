@@ -12,6 +12,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from database.models.review import Review, ReviewSchema
 from database.models.property_type import PropertyType, PropertyTypeSchema
 from database.models.base import BaseModel, BaseSchema
 from database.models.image import Image, ImageSchema
@@ -91,6 +92,11 @@ class Property(BaseModel):
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
+    average_rating: Mapped[float] = mapped_column(
+        Numeric(3, 2, asdecimal=False),
+        default=0.0,
+        server_default="0.00",
+    )
     address_id: Mapped[uuid.UUID | None] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("addresses.id", ondelete="SET NULL"),
@@ -99,6 +105,9 @@ class Property(BaseModel):
     )
     owner: Mapped["User"] = relationship(
         "User", back_populates="properties", lazy="joined"
+    )
+    reviews: Mapped[list["Review"]] = relationship(
+        "Review", lazy="noload"
     )
     address: Mapped["Address"] = relationship("Address", uselist=False, lazy="selectin")
     tags: Mapped[list[Tag]] = relationship(
@@ -109,7 +118,7 @@ class Property(BaseModel):
 class PropertySchema(BaseSchema):
     title: str
     property_category: str
-    property_type_id: str
+    property_type_id: uuid.UUID
     property_type: PropertyTypeSchema
     transaction_type: str
     price: float
@@ -117,10 +126,12 @@ class PropertySchema(BaseSchema):
     bathrooms: int
     sqm: float
     description: str
-    status: str
+    average_rating: float
+    status: bool
     owner_id: uuid.UUID
     address_id: uuid.UUID | None
     owner: Optional["UserSchema"]
     address: Optional["AddressSchema"]
     images: list[ImageSchema]
     tags: list[TagSchema]
+    reviews: list[ReviewSchema]

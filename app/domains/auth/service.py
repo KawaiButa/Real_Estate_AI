@@ -110,9 +110,7 @@ class AuthService(SQLAlchemyAsyncRepositoryService[User]):
         if not user:
             raise ValueError("User not found")
 
-        # Generate a secure random token (raw token to be sent via email).
         raw_token = secrets.token_urlsafe(32)
-        # Hash the token using SHA-256.
         hashed_token = hashlib.sha256(raw_token.encode()).hexdigest()
 
         # Set token expiration time (e.g., 1 hour from now).
@@ -144,6 +142,29 @@ class AuthService(SQLAlchemyAsyncRepositoryService[User]):
         user.reset_password_token = None
         user = await self.update(user, auto_commit=True, auto_refresh=True)
         return user
+
+    async def refresh_token(self, user_id: uuid) -> LoginReturnSchema:
+        user = await self.get_one_or_none(User.id == user_id)
+        if not user:
+            raise ValidationException("Invalid credential")
+        return LoginReturnSchema(
+            token=oauth2_auth.create_token(
+                identifier=str(
+                    {
+                        "id": str(user.id),
+                        "name": user.name,
+                        "roles": [
+                            {
+                                "id": str(user.id),
+                                "name": role.name,
+                            }
+                            for role in user.roles
+                        ],
+                    }
+                ),
+            ),
+            user=self.to_schema(data=user, schema_type=UserSchema),
+        )
 
 
 async def provide_auth_service(

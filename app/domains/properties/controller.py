@@ -101,7 +101,7 @@ class PropertyController(Controller):
         else:
             user_id = None
         return property_service.to_schema(
-            await property_service.update(property_id, data=data, user_id=user_id),
+            await property_service.update_property(property_id, data=data, user_id=user_id),
             schema_type=PropertySchema,
         )
 

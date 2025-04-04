@@ -4,6 +4,9 @@ from litestar.exceptions import ValidationException
 from litestar import Litestar, MediaType, Request, Response, get
 from litestar.types import ControllerRouterHandler
 from litestar.plugins.sqlalchemy import SQLAlchemyPlugin
+from domains.banner.controller import BannerController
+from domains.review.controller import RatingController
+from domains.property_verification.controller import VerificationController
 from domains.property_types.controller import PropertyTypeController
 from seed.factories.image import ImageFactory
 from seed.factories.partner_registration import PartnerRegistrationFactory
@@ -28,14 +31,15 @@ from litestar.static_files import create_static_files_router
 from configs.template import template_config
 from seed.factories.user import UserFactory
 from seed.factories.article import ArticleFactory
-
+from seed.factories.review import ReviewFactory
+from seed.factories.banner import BannerFactory
 load_dotenv()
 
 
 def validation_exception_handler(
     request: Request, exc: ValidationException
 ) -> Response:
-    if isinstance(exc.extra, list) and len(exc.extra) > 0 and exc.extra[0]["input"]:
+    if isinstance(exc.extra, list) and len(exc.extra) > 0 and "input" in exc.extra[0]:
         content = {
             "status_code": 400,
             "Message": "Bad request",
@@ -75,13 +79,16 @@ async def helloWorld(request: Request) -> str:
 
 routes: list[ControllerRouterHandler] = [
     AuthController,
-    PropertyController,
-    PartnerRegistrationController,
     ProfileController,
+    PartnerRegistrationController,
+    PropertyController,
+    RatingController,
+    BannerController,
     ArticleController,
     PrometheusController,
     AdminController,
     PropertyTypeController,
+    VerificationController,
     schema,
     helloWorld,
     create_static_files_router(
@@ -100,12 +107,14 @@ seeder = Seeder()
 async def on_startUp() -> None:
     await seeder.seed_all(
         factory_classes=[
-            (AddressFactory, 1000),
-            (UserFactory, 20),
-            (PartnerRegistrationFactory, 20),
-            (PropertyFactory, 100),
-            (ImageFactory, None),
+            # (AddressFactory, 1000),
+            # (UserFactory, 20),
+            # (PartnerRegistrationFactory, 20),
+            # (PropertyFactory, 100),
+            # (ImageFactory, None),
             # (ArticleFactory, 200),
+            # (ReviewFactory, 100)
+            (BannerFactory, 10)
         ]
     )
     return

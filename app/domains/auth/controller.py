@@ -1,6 +1,6 @@
 from datetime import date
 from typing import Annotated, Any
-from litestar import Controller, get, post
+from litestar import Controller, Request, get, post
 from litestar.di import Provide
 from litestar.dto import DTOData
 from domains.email.service import MailService, provide_mail_service
@@ -12,6 +12,7 @@ from domains.auth.dtos import (
     RegisterReturnDTO,
     ResetPasswordSchema,
 )
+from litestar.security.jwt import Token
 from litestar.enums import RequestEncodingType
 from domains.auth.service import AuthService, provide_auth_service
 from database.models.user import User
@@ -90,3 +91,9 @@ class AuthController(Controller):
             token=data.token, new_password=data.new_password
         )
         return "Reset password successfully"
+
+    @get("/refresh-token")
+    async def refresh_token(
+        self, auth_service: AuthService, request: Request[User, Token, Any]
+    ):
+        return await auth_service.refresh_token(user_id=request.user.id)

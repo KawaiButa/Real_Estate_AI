@@ -10,7 +10,7 @@ from litestar.dto import DTOConfig
 
 class RegisterWriteModel(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    profile_img: UploadFile
+    profile_img: Optional[UploadFile] = None
     business_registration_certificate_img: Optional[UploadFile] = None
     date_of_birth: datetime.date
     authorized_representative_name: Optional[str] = None

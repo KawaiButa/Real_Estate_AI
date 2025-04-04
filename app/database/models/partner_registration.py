@@ -49,7 +49,7 @@ class PartnerRegistration(BaseModel):
         foreign_keys=[foreign(Image.model_id)],
         remote_side=[Image.model_id],
         backref="partner_registration",
-        lazy="dynamic",
+        lazy="selectin",
     )
     tax_id: Mapped[str] = mapped_column(String(100), nullable=True)
     authorized_representative_name: Mapped[str] = mapped_column(
@@ -65,7 +65,6 @@ class PartnerRegistrationSchema(BaseSchema):
     user_id: Optional[uuid.UUID] = None
     user: Optional["UserSchema"] = None
     date_of_birth: date
-    profile_image: Optional[ImageSchema] = None
     type: PartnerType
     business_registration_certificate_images: list[ImageSchema] = []
     tax_id: Optional[str] = None

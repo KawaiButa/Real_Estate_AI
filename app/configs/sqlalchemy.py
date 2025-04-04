@@ -13,7 +13,7 @@ session_config = AsyncSessionConfig(expire_on_commit=False)
 sqlalchemy_config = SQLAlchemyAsyncConfig(
     connection_string=os.environ.get("DB_URL"),
     session_config=session_config,
-    create_all=True,
+    create_all=False,
 )  # Create 'async_session' dependency.
 
 sessionmaker = async_sessionmaker(expire_on_commit=False)

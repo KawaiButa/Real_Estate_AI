@@ -30,7 +30,6 @@ class PartnerRegistrationController(Controller):
 
     dependencies = {
         "partner_registration_service": Provide(provide_property_service),
-        "supabase_service": Provide(provide_supabase_service),
     }
 
     @get(
@@ -61,7 +60,6 @@ class PartnerRegistrationController(Controller):
 
     @post(
         "/",
-        dto=RegisterWriteDTO,
         guards=[role_guard([GuardRole.CUSTOMER])],
         opt={"customer": GuardRole.CUSTOMER},
     )
@@ -71,45 +69,13 @@ class PartnerRegistrationController(Controller):
             RegisterWriteModel, Body(media_type=RequestEncodingType.MULTI_PART)
         ],
         partner_registration_service: PartnerRegistrationService,
-        supabase_service: SupabaseService,
         request: Request[User, Token, Any],
     ) -> PartnerRegistration:
-        if "partner" in [role["name"] for role in request.user.roles]:
-            raise PermissionDeniedException("You are a partner already")
-        partner_registration = await partner_registration_service.get_one_or_none(
-            PartnerRegistration.user_id.__eq__(request.user.id)
+        if not data.profile_img and request.user.image_id:
+            raise ValidationException("You have to set profile image or provide image")
+        return await partner_registration_service.register(
+            data=data, user_id=request.user.id
         )
-        if partner_registration:
-            raise ValidationException("You have already registered to be a partner")
-        if (
-            data.type == PartnerType.ENTERPRISE
-            and not data.business_registration_certificate_img
-        ):
-            raise ValidationException(
-                "Business Registration Certification Image is required with partner type Enterprise"
-            )
-        # Generate a unique filename or use provided one
-        profile_filename = f"{request.user.id}"
-        if data.type == PartnerType.INDIVIDUAL:
-            data.authorized_representative_name = None
-            data.business_registration_certificate_url = None
-            data.tax_id = None
-        data.profile_url = await supabase_service.upload_file(
-            data.profile_img, bucket_name="profile", name=profile_filename
-        )
-        if data.business_registration_certificate_img:
-            data.business_registration_certificate_url = (
-                await supabase_service.upload_file(
-                    data.business_registration_certificate_img,
-                    name=profile_filename,
-                    bucket_name="business_registration",
-                )
-            )
-        data.user_id = request.user.id
-        partner_registration = await partner_registration_service.create(
-            data=data, auto_commit=True, auto_refresh=True
-        )
-        return partner_registration
 
     @patch(
         "/",
@@ -121,13 +87,11 @@ class PartnerRegistrationController(Controller):
         self,
         data: DTOData[RegisterWriteModel],
         user_id: uuid.UUID,
-        supabase_service: SupabaseService,
         partner_registration_service: PartnerRegistrationService,
     ) -> PartnerRegistration:
         partner_registration = await partner_registration_service.update_registration(
             data=data.create_instance(updated_at=datetime.utcnow()),
             user_id=user_id,
-            supabase_service=supabase_service,
         )
         return partner_registration
 

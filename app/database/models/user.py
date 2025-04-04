@@ -1,7 +1,6 @@
 from __future__ import annotations
-from dataclasses import dataclass
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 import uuid
 from sqlalchemy import (
     DateTime,
@@ -20,11 +19,10 @@ from database.models.partner_registration import (
 )
 from database.models.base import BaseModel, BaseSchema
 from database.models.role import RoleSchema, UserRole, Role
-from litestar.plugins.sqlalchemy import base
 from database.models.address import Address, AddressSchema
-from database.models.property import Favorite, Property, PropertySchema
 from litestar.dto import dto_field
 
+from database.models.property import Favorite, Property, PropertySchema
 
 class UserTag(BaseModel):
     __tablename__ = "user_tags"

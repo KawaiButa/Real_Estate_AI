@@ -20,7 +20,7 @@ from domains.properties.dtos import (
     CreatePropertySchema,
     UpdatePropertySchema,
 )
-from domains.image.service import ImageService, provide_image_service
+from domains.image.service import ImageService
 from domains.supabase.service import SupabaseService, provide_supabase_service
 from database.models.address import Address
 from database.models.property import Property
@@ -162,7 +162,8 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         pagination: LimitOffset,
     ) -> OffsetPagination[Property]:
         query = select(Property).options(
-            joinedload(Property.address), joinedload(Property.owner)
+            joinedload(Property.address),
+            joinedload(Property.owner),
         )
 
         if search_param.lat and search_param.lng:
@@ -306,7 +307,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         await self.repository.session.commit()
         return property
 
-    async def update(
+    async def update_property(
         self,
         item_id: UUID,
         data: UpdatePropertySchema,
@@ -405,7 +406,7 @@ async def query_params_extractor(
         description="Longitude of search center (Vietnam coordinates)",
     ),
     radius: Optional[float] = Parameter(
-        10.0,
+        default = 10.0,
         title="Search Radius",
         description="Radius in kilometers for location-based search",
     ),
