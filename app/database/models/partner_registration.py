@@ -31,7 +31,7 @@ class PartnerRegistration(BaseModel):
         nullable=False,
     )
     user: Mapped["User"] = relationship(
-        "User", back_populates="partner_registration", lazy="joined"
+        "User", back_populates="partner_registration", lazy="noload"
     )
 
     type: Mapped[PartnerType] = mapped_column(

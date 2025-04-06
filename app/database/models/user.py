@@ -106,7 +106,7 @@ class UserSchema(BaseSchema):
     address: Optional[AddressSchema] = None
     roles: list[RoleSchema]
     properties: Optional[list[PropertySchema]]
-    registration: Optional[PartnerRegistrationSchema] = None
+    partner_registration: Optional[PartnerRegistrationSchema]
     favorites: Optional[list[PropertySchema]]
     tags: list[TagSchema]
 
