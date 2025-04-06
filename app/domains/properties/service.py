@@ -527,6 +527,7 @@ async def fetch_city_image(city_name: str) -> str:
     data = response.json()
     if data.get("results"):
         result = data["results"][0]["urls"]["regular"]
-        store.set(f"city_{city_name.replace(" ", "_")}", result)
+        city_name = city_name.replace(" ", "_")
+        store.set(f"city_{city_name}", result)
         return result
     return None
