@@ -514,7 +514,7 @@ async def query_params_extractor(
 
 
 async def fetch_city_image(city_name: str) -> str:
-    stored_data = await store.get(f"city_{city_name.replace(" ", "_")}")
+    stored_data = await store.get(f"city_{city_name.replace(' ', '_')}")
     if stored_data:
         return str(stored_data)[2:-1]
     url = "https://api.unsplash.com/search/photos"
