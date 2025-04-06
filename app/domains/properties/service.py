@@ -1,12 +1,14 @@
 import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime
+import os
 from typing import Optional
 from uuid import UUID
 import uuid
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from pydantic import BaseModel, ValidationInfo, field_validator
+import requests
 from sqlalchemy import Enum, asc, desc, func, select
 from litestar.params import Parameter
 from litestar.openapi.spec.example import Example
@@ -29,6 +31,7 @@ from advanced_alchemy.filters import LimitOffset
 from litestar.pagination import OffsetPagination
 from sqlalchemy.orm import noload
 from advanced_alchemy.utils.text import slugify
+from litestar.stores.memory import MemoryStore
 
 # Vietnam-specific property constants
 VIETNAM_PROPERTY_CATEGORIES = [
@@ -41,6 +44,7 @@ VIETNAM_PROPERTY_CATEGORIES = [
 ]
 VIETNAM_TRANSACTION_TYPES = ["rent", "sale"]
 VIETNAM_PROPERTY_STATUSES = ["available", "occupied", "pending", "expired"]
+store = MemoryStore()
 
 
 class PropertyOrder(str, Enum):
@@ -394,7 +398,11 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         if type:
             query = query.where(Property.property_category == type)
         result = (await self.repository.session.execute(query)).fetchall()
-        return [{"city": row[0], "count": row[1]} for row in result]
+        data = [{"city": row[0], "count": row[1]} for row in result]
+        return [
+            {**data_point, "url": await fetch_city_image(data_point["city"])}
+            for data_point in data
+        ]
 
 
 async def provide_property_service(
@@ -503,3 +511,22 @@ async def query_params_extractor(
         order_by=order_by,
         order_direction=order_direction,
     )
+
+
+async def fetch_city_image(city_name: str) -> str:
+    stored_data = await store.get(f"city_{city_name.replace(" ", "_")}")
+    if stored_data:
+        return str(stored_data)[2:-1]
+    url = "https://api.unsplash.com/search/photos"
+    params = {
+        "query": city_name,
+        "client_id": os.getenv("UPSPLASH_ACCESS_TOKEN"),
+        "per_page": 1,
+    }
+    response = requests.get(url, params=params)
+    data = response.json()
+    if data.get("results"):
+        result = data["results"][0]["urls"]["regular"]
+        store.set(f"city_{city_name.replace(" ", "_")}", result)
+        return result
+    return None

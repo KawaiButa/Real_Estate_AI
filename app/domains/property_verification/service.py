@@ -53,8 +53,10 @@ class VerificationService(SQLAlchemyAsyncRepositoryService[PropertyVerification]
     async def verify_code(
         self, property_id: UUID, user_id: UUID, code: str, validation_method: str
     ) -> PropertyVerification:
-        qr_code_id = str(await store.get(str(property_id)))[2:-1]
-        print("Code id:", qr_code_id)
+        data = await store.get(str(property_id))
+        if not data:
+            raise ValidationException("Wrong code or expired")
+        qr_code_id = str(data)[2:-1]
         if code != qr_code_id:
             raise ValidationException("Wrong code or expired")
         store.delete(str(property_id))
