@@ -1,4 +1,4 @@
-from typing import Annotated, Any
+from typing import Annotated, Any, Optional
 import uuid
 from litestar import Controller, Request, delete, get, patch, post
 from litestar.di import Provide
@@ -9,6 +9,7 @@ from domains.properties.service import (
     provide_property_service,
     query_params_extractor,
 )
+from litestar.params import Parameter
 from database.models.property import Property, PropertySchema
 from domains.properties.dtos import (
     CreatePropertyDTO,
@@ -154,3 +155,6 @@ class PropertyController(Controller):
         return await property_service.update_activation(
             property_id=property_id, activate=data.active, user_id=user_id
         )
+    @get("/count", no_auth=True)
+    async def count_by_city(self,property_service: PropertyService,  type: Optional[str]) -> Any:
+        return await property_service.count_by_city(type=type)

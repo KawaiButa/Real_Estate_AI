@@ -385,6 +385,17 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         )
         return property
 
+    async def count_by_city(self, type: Optional[str]) -> dict:
+        query = (
+            select(Address.city, func.count(Address.id).label("property_count"))
+            .join(Property, Property.address_id == Address.id)
+            .group_by(Address.city)
+        )
+        if type:
+            query = query.where(Property.property_category == type)
+        result = (await self.repository.session.execute(query)).fetchall()
+        return [{"city": row[0], "count": row[1]} for row in result]
+
 
 async def provide_property_service(
     db_session: AsyncSession,
@@ -406,7 +417,7 @@ async def query_params_extractor(
         description="Longitude of search center (Vietnam coordinates)",
     ),
     radius: Optional[float] = Parameter(
-        default = 10.0,
+        default=10.0,
         title="Search Radius",
         description="Radius in kilometers for location-based search",
     ),
