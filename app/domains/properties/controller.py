@@ -127,7 +127,7 @@ class PropertyController(Controller):
 
         if not (
             "admin" in [role["name"] for role in request.user.roles]
-            or property.owner_id == request.user.id
+            or str(property.owner_id) == request.user.id
         ):
             raise NotAuthorizedException(f"You are not allowed to delete this property")
 
