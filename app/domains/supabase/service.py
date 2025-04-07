@@ -64,6 +64,8 @@ class SupabaseService:
         try:
             old_filename = image.url.split("/")[-1]
             self.supabase_client.storage.from_(bucket_name).remove([old_filename])
+        except StorageException as exc:
+            print(exc)
         except Exception as e:
             raise InternalServerException(
                 f"Failed to delete old image from storage: {e}"
@@ -88,9 +90,10 @@ class SupabaseService:
                 {"content-type": file.content_type},
             )
         except StorageException as exc:
-            raise InternalServerException(f"Failed to upload new image: {exc}")
+            print(exc)
         finally:
-            os.remove(tmp_path)
+            # os.remove(tmp_path)
+            pass
 
         public_url = self.supabase_client.storage.from_(bucket_name).get_public_url(
             filename

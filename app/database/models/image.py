@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import uuid
 from sqlalchemy import (
     ForeignKey,
@@ -38,5 +38,5 @@ class Image(BaseModel):
 
 class ImageSchema(BaseSchema):
     url: str
-    model_id: uuid.UUID
-    model_type: str
+    model_id: Optional[uuid.UUID]
+    model_type: Optional[str]

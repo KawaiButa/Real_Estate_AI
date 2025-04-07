@@ -1,5 +1,6 @@
 import uuid
 from collections.abc import AsyncGenerator
+from domains.image.service import ImageService
 from domains.auth.dtos import LoginReturnSchema
 from domains.supabase.service import SupabaseService, provide_supabase_service
 from domains.profile.dto import UpdateUserSchema
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from litestar.exceptions import ValidationException
 from sqlalchemy.orm import selectinload, noload
 from security.oauth2 import oauth2_auth
+
 
 class ProfileService(SQLAlchemyAsyncRepositoryService[User]):
     repository_type = UserRepository
@@ -35,34 +37,30 @@ class ProfileService(SQLAlchemyAsyncRepositoryService[User]):
         user_id: uuid.UUID,
     ) -> UserSchema:
         profile = await self.get_one_or_none(
-            User.id == user_id,
-            populate={
-                "profile_image": True,
-                "address": True,
-                "roles": True,
-                "properties": True,
-                "favorites": True,
-                "tags": True,
-            },
+            User.id == user_id
         )
 
         if not profile:
             raise ValidationException(f"Cannot find user with id {user_id}")
-
+        update_data = data.model_dump(exclude={"profile_image"}, exclude_none=True)
         if data.profile_image:
             if profile.profile_image:
                 await self.supabase_service.update_image(
                     profile.profile_image, data.profile_image
                 )
             else:
-                data.profile_image = {
-                    "url": await self.supabase_service.upload_file(
-                        data.profile_image, name=f"{profile.id}"
+                url = await self.supabase_service.upload_file(
+                    data.profile_image, name=f"{profile.id}"
+                )
+                image_service = ImageService(session=self.repository.session)
+                update_data["image_id"] = (
+                    await image_service.create(
+                        data={"url": url, "model_type": None, "model_id": None},
+                        auto_refresh=True,
                     )
-                }
-        update_data = data.model_dump(exclude={"profile_image"}, exclude_unset=True)
+                ).id
         updated_profile = await self.update(
-            data=update_data,
+            update_data,
             item_id=profile.id,
             auto_commit=True,
             auto_refresh=True,
@@ -80,6 +78,7 @@ class ProfileService(SQLAlchemyAsyncRepositoryService[User]):
             user.favorites.append(property)
         await self.update(data=user, item_id=user_id)
         return True
+
     async def refresh_token(self, user_id: uuid) -> LoginReturnSchema:
         user = await self.get_one_or_none(User.id == user_id)
         if not user:

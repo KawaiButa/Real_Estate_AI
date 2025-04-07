@@ -20,9 +20,8 @@ class UpdateAddress(BaseModel):
 
 
 class UpdateUserSchema(BaseModel):
-    username: Optional[str]
+    name: Optional[str]
     phone: Optional[str]
-    address: Optional[UpdateAddress]
     profile_image: Optional[UploadFile]
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -30,9 +29,8 @@ class UpdateUserSchema(BaseModel):
 class UpdateUserDTO(PydanticDTO[UpdateUserSchema]):
     config = DTOConfig(
         include={
-            "username",
+            "name",
             "phone",
-            "address",
             "profile_image",
         }
     )
