@@ -8,6 +8,7 @@ from database.models.user import User
 from domains.property_verification.dtos import (
     VerificationConfirmDTO,
 )
+from litestar.exceptions import NotAuthorizedException
 from domains.property_verification.service import (
     VerificationService,
     provide_verification_service,
@@ -63,3 +64,10 @@ class VerificationController(Controller):
             validation_method=data.method,
             code=data.code,
         )
+    
+    @get('/allow')
+    async def check_allow(self, property_id: UUID, verification_service: VerificationService, request: Request[User, Token, Any]) -> PropertyVerification:
+        verification = await verification_service.get_one_or_none(PropertyVerification.user_id == request.user.id, PropertyVerification.property_id == property_id)
+        if not verification:
+            raise NotAuthorizedException("You are not allowed to review this property.")
+        return verification

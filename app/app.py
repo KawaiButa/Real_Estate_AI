@@ -68,7 +68,7 @@ def on_startup():
 
 @get(path="/schema", include_in_schema=False)
 async def schema(request: Request) -> dict:
-    schema = request.app.openapi_schema
+    schema = request.openapi_schema
     return schema.to_schema()
 
 

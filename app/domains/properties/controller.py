@@ -52,10 +52,19 @@ class PropertyController(Controller):
     async def get_properties(
         self,
         params: PropertySearchParams,
+        user_id: Annotated[
+            Optional[uuid.UUID],
+            Parameter(
+                default=None,
+                title="User id",
+            ),
+        ],
         property_service: PropertyService,
         pagination: LimitOffset,
     ) -> OffsetPagination[Property]:
-        return await property_service.search(search_param=params, pagination=pagination)
+        return await property_service.search(
+            search_param=params, pagination=pagination, user_id=user_id
+        )
 
     @post(
         "/",
@@ -102,7 +111,9 @@ class PropertyController(Controller):
         else:
             user_id = None
         return property_service.to_schema(
-            await property_service.update_property(property_id, data=data, user_id=user_id),
+            await property_service.update_property(
+                property_id, data=data, user_id=user_id
+            ),
             schema_type=PropertySchema,
         )
 
@@ -155,6 +166,9 @@ class PropertyController(Controller):
         return await property_service.update_activation(
             property_id=property_id, activate=data.active, user_id=user_id
         )
+
     @get("/count", no_auth=True)
-    async def count_by_city(self,property_service: PropertyService,  type: Optional[str]) -> Any:
+    async def count_by_city(
+        self, property_service: PropertyService, type: Optional[str]
+    ) -> Any:
         return await property_service.count_by_city(type=type)

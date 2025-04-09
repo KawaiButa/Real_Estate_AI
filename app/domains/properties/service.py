@@ -14,6 +14,7 @@ from litestar.params import Parameter
 from litestar.openapi.spec.example import Example
 from litestar.exceptions import ValidationException, NotAuthorizedException
 from sqlalchemy.orm import joinedload, selectinload
+from domains.user_search.service import UserSearchService
 from database.models.property_type import PropertyType
 from domains.address.service import AddressService
 from database.models.user import User
@@ -58,6 +59,10 @@ class PropertyRepository(SQLAlchemyAsyncRepository[Property]):
 
 
 class PropertySearchParams(BaseModel):
+    
+    search: Optional[str] = Parameter(
+        title="Search Query", description="Search query to check in the description"
+    )
     lat: Optional[float] = Parameter(
         None,
         title="Latitude",
@@ -164,6 +169,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         self,
         search_param: PropertySearchParams,
         pagination: LimitOffset,
+        user_id: uuid.UUID | None = None,
     ) -> OffsetPagination[Property]:
         query = select(Property).options(
             joinedload(Property.address),
@@ -208,6 +214,9 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         if search_param.min_sqm:
             query = query.where(Property.sqm >= search_param.min_sqm)
 
+        # Search query
+        if search_param.search:
+            query = query.where(Property.description.contains(search_param.search))
         # Apply Vietnam-specific filters
         if search_param.city:
             query = query.where(Property.address.city.ilike(f"%{search_param.city}%"))
@@ -243,7 +252,18 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             .all(),
         )
         total = await self.count()
-
+        
+        user_search_service = UserSearchService(session=self.repository.session)
+        await user_search_service.create(
+            {
+                "user_id": user_id,
+                "search_query": search_param.search,
+                "type": search_param.property_category,
+                "min_price": search_param.min_price,
+                "max_price": search_param.max_price,
+            },
+            auto_commit=True,
+        )
         return OffsetPagination(
             items=items[0],
             total=total,
@@ -414,6 +434,9 @@ async def provide_property_service(
 
 
 async def query_params_extractor(
+    search: Optional[str] = Parameter(
+        title="Search Query", description="Search query to check in the description"
+    ),
     lat: Optional[float] = Parameter(
         None,
         title="Latitude",
@@ -493,6 +516,7 @@ async def query_params_extractor(
     ),
 ) -> PropertySearchParams:
     return PropertySearchParams(
+        search=search,
         lat=lat,
         lng=lng,
         radius=radius,
@@ -527,7 +551,7 @@ async def fetch_city_image(city_name: str) -> str:
     data = response.json()
     if data.get("results"):
         result = data["results"][0]["urls"]["regular"]
-        city_name = city_name.replace(' ', '_')
+        city_name = city_name.replace(" ", "_")
         store.set(f"city_{city_name}", result)
         return result
     return None

@@ -25,11 +25,26 @@ dependencies = [
     "requests (>=2.32.3,<3.0.0)",
     "qrcode (>=8.1,<9.0)",
     "pillow (>=11.1.0,<12.0.0)",
+    "torch (>=2.6.0,<3.0.0)",
+    "torchvision (>=0.21.0,<0.22.0)",
+    "scikit-learn (>=1.6.1,<2.0.0)",
+    "pandas (>=2.2.3,<3.0.0)",
+    "faiss-cpu (>=1.10.0,<2.0.0)",
+    "sentence-transformers (>=4.0.2,<5.0.0)",
 ]
 
 [tool.poetry]
 package-mode = false
 
+[[tool.poetry.source]]
+name = "pytorch_cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
+
+[tool.poetry.dependencies]
+torch = {source = "pytorch_cpu"}
+torchvision = {source = "pytorch_cpu"}
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
