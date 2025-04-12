@@ -17,8 +17,8 @@ class UserActionController(Controller):
 
     @post(no_auth=True)
     async def createAction(
-        self, body: CreateUserActionDTO, user_action_service: UserActionService
+        self, data: CreateUserActionDTO, user_action_service: UserActionService
     ) -> UserAction:
         return await user_action_service.create(
-            body.to_dict(), auto_commit=True, auto_refresh=True
+            data.model_dump(), auto_commit=True, auto_refresh=True
         )

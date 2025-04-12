@@ -12,7 +12,7 @@ from database.models.base import BaseModel
 
 
 class UserSearch(BaseModel):
-    __tablename__="user_searchs"
+    __tablename__="user_searches"
     user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         PG_UUID(as_uuid=True),
         ForeignKey("images.id", ondelete="SET NULL"),

@@ -1,7 +1,6 @@
 from typing import Optional
 from uuid import UUID
-from pydantic import ConfigDict
-from database.models.base import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class CreateUserActionDTO(BaseModel):

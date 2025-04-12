@@ -35,10 +35,10 @@ def generate_title(property_category, transaction_type, city):
 
     try:
         response = client.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-3.5-turbo",
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
-            max_tokens=50,
+            max_tokens=5000,
         )
         title = response.choices[0].message.content.strip()
     except Exception as e:
@@ -137,10 +137,10 @@ class PropertyFactory(BaseFactory):
                     title = generate_title(
                         property_category, transaction_type, address.city
                     )
-                    price = round(random.uniform(50000, 500000), 2)
+                    price = round(random.uniform(500000, 50000000), 0)
                     bedrooms = random.randint(1, 5)
                     bathrooms = random.randint(1, 5)
-                    sqm = round(random.uniform(1.0, 1000.0), 2)
+                    sqm = round(random.uniform(10.0, 1000.0), 2)
                     status = random.choice([True, False])
                     active = True
                     description = generate_html_description(

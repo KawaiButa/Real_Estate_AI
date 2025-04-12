@@ -21,12 +21,12 @@ class UserAction(BaseModel):
         PG_UUID(as_uuid=True),
         ForeignKey("images.id", ondelete="SET NULL"),
         nullable=True,
-        unique=True,
+        unique=False,
     )
     property_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("images.id", ondelete="SET NULL"),
+        ForeignKey("properties.id", ondelete="SET NULL"),
         nullable=True,
-        unique=True,
+        unique=False,
     )
     action: Mapped[str] = mapped_column(String, nullable=False, unique=False)

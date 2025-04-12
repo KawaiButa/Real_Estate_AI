@@ -8,10 +8,13 @@ from domains.banner.controller import BannerController
 from domains.review.controller import RatingController
 from domains.property_verification.controller import VerificationController
 from domains.property_types.controller import PropertyTypeController
+from domains.user_action.controller import UserActionController
 from seed.factories.image import ImageFactory
+from seed.factories.user_action import UserActionFactory
 from seed.factories.partner_registration import PartnerRegistrationFactory
 from seed.factories.property import PropertyFactory
 from seed.factories.address import AddressFactory
+from seed.factories.user_search import UserSearchFactory
 from seed.seed import Seeder
 from domains.news.controller import ArticleController
 from domains.admin.controller import AdminController
@@ -89,6 +92,7 @@ routes: list[ControllerRouterHandler] = [
     AdminController,
     PropertyTypeController,
     VerificationController,
+    UserActionController,
     schema,
     helloWorld,
     create_static_files_router(
@@ -110,11 +114,13 @@ async def on_startUp() -> None:
             # (AddressFactory, 1000),
             # (UserFactory, 20),
             # (PartnerRegistrationFactory, 20),
-            # (PropertyFactory, 100),
+            # (PropertyFactory, 1000),
             # (ImageFactory, None),
             # (ArticleFactory, 200),
-            # (ReviewFactory, 100)
-            (BannerFactory, 10)
+            # (ReviewFactory, 10000),
+            # (BannerFactory, 10)
+            # (UserActionFactory, 10000),
+            (UserSearchFactory, 10000),
         ]
     )
     return
