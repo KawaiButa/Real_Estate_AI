@@ -66,6 +66,17 @@ class PropertyController(Controller):
             search_param=params, pagination=pagination, user_id=user_id
         )
 
+    @get("/{property_id: uuid}")
+    async def get_property_detail(
+        self, property_id: uuid.UUID, property_service: PropertyService
+    ):
+        property = await property_service.get_one_or_none(
+            Property.id == property_id, load=[lazyload("*")]
+        )
+        if not property:
+            raise ValidationException("Property not found")
+        return property
+
     @post(
         "/",
         dto=CreatePropertyDTO,
