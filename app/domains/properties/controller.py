@@ -66,12 +66,15 @@ class PropertyController(Controller):
             search_param=params, pagination=pagination, user_id=user_id
         )
 
-    @get("/{property_id: uuid}")
+    @get(
+        "/{property_id: uuid}",
+        no_auth=True,
+    )
     async def get_property_detail(
         self, property_id: uuid.UUID, property_service: PropertyService
-    ):
+    ) -> Property:
         property = await property_service.get_one_or_none(
-            Property.id == property_id, load=[lazyload("*")]
+            Property.id == property_id,
         )
         if not property:
             raise ValidationException("Property not found")

@@ -107,7 +107,7 @@ class Property(BaseModel):
         "User", back_populates="properties", lazy="joined"
     )
     reviews: Mapped[list["Review"]] = relationship(
-        "Review", lazy="noload"
+        "Review", lazy="selectin"
     )
     address: Mapped["Address"] = relationship("Address", uselist=False, lazy="selectin")
     tags: Mapped[list[Tag]] = relationship(

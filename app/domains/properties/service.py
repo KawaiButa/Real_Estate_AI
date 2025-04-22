@@ -177,6 +177,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             .options(
                 joinedload(Property.address),
                 joinedload(Property.owner),
+                noload(Property.reviews),
             )
             .join(Property.owner)
             .where(User.id != user_id)

@@ -9,7 +9,7 @@ from database.models.partner_registration import PartnerRegistration
 from database.models.property import Property
 from configs.sqlalchemy import sqlalchemy_config
 from domains.image.service import ImageRepository  # Adjust the import path if needed
-
+from sqlalchemy.orm import noload
 fake = Faker("vi_VN")
 
 
@@ -20,7 +20,7 @@ class ImageFactory(BaseFactory):
         async with sqlalchemy_config.get_session() as session:
             try:
                 # Seed images for PartnerRegistration:
-                partner_result = await session.execute(select(PartnerRegistration))
+                partner_result = (await session.execute(select(PartnerRegistration))).unique()
                 partner_regs = partner_result.scalars().all()
 
                 for partner in partner_regs:
@@ -71,5 +71,5 @@ class ImageFactory(BaseFactory):
 
     async def drop_all(self) -> None:
         async with sqlalchemy_config.get_session() as session:
-            await self.repository(session=session).delete_where(Image.id.is_not(None))
+            await self.repository(session=session).delete_where(Image.id.is_not(None), load=[noload("*")])
             await session.commit()

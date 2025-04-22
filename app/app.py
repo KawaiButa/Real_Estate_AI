@@ -115,12 +115,12 @@ async def on_startUp() -> None:
             # (UserFactory, 20),
             # (PartnerRegistrationFactory, 20),
             # (PropertyFactory, 1000),
-            # (ImageFactory, None),
+            (ImageFactory, None),
             # (ArticleFactory, 200),
             # (ReviewFactory, 10000),
             # (BannerFactory, 10)
             # (UserActionFactory, 10000),
-            (UserSearchFactory, 10000),
+            # (UserSearchFactory, 10000),
         ]
     )
     return
