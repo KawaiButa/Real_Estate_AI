@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from typing import Optional
-from fastapi import UploadFile
+from litestar.datastructures import UploadFile
 from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
 from litestar.params import Parameter
