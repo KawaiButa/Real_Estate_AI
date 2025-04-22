@@ -2,6 +2,7 @@ from typing import Annotated, Any, Optional
 import uuid
 from litestar import Controller, Request, delete, get, patch, post
 from litestar.di import Provide
+from database.models.review import Review
 from database.utils import provide_pagination_params
 from domains.properties.service import (
     PropertySearchParams,
@@ -31,7 +32,7 @@ from litestar.pagination import OffsetPagination
 from domains.auth.guard import GuardRole, login_guard, role_guard
 from litestar.params import Body
 from litestar.enums import RequestEncodingType
-from sqlalchemy.orm import lazyload
+from sqlalchemy.orm import lazyload, selectinload
 
 
 class PropertyController(Controller):
@@ -69,6 +70,8 @@ class PropertyController(Controller):
     @get(
         "/{property_id: uuid}",
         no_auth=True,
+        dto=None,
+        return_dto=SQLAlchemyDTO[Property],
     )
     async def get_property_detail(
         self, property_id: uuid.UUID, property_service: PropertyService
@@ -181,7 +184,10 @@ class PropertyController(Controller):
             property_id=property_id, activate=data.active, user_id=user_id
         )
 
-    @get("/count", no_auth=True)
+    @get(
+        "/count",
+        no_auth=True,
+    )
     async def count_by_city(
         self, property_service: PropertyService, type: Optional[str]
     ) -> Any:

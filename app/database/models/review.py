@@ -14,11 +14,7 @@ from database.models.base import BaseModel, BaseSchema
 
 if TYPE_CHECKING:
     from database.models.user import UserSchema
-
-
-if TYPE_CHECKING:
     from database.models.user import User
-
 
 class Review(BaseModel):
     __tablename__ = "reviews"
@@ -38,7 +34,7 @@ class Review(BaseModel):
     featured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     # Relationships
-    reviewer: Mapped["User"] = relationship("User", lazy="joined")
+    reviewer: Mapped["User"] = relationship("User", lazy="selectin")
     responses: Mapped[list["ReviewResponse"]] = relationship(
         "ReviewResponse", lazy="joined"
     )
