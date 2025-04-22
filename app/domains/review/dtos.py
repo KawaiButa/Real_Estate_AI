@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 from typing import Optional
 from litestar.datastructures import UploadFile
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from uuid import UUID
 from litestar.params import Parameter
 
 
 class ReviewCreateDTO(BaseModel):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     rating: int = Field(..., ge=1, le=5)
     review_text: str = Field(..., min_length=50, max_length=2000)
     image_list: Optional[list[UploadFile]]
