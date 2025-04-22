@@ -33,6 +33,7 @@ from litestar.pagination import OffsetPagination
 from sqlalchemy.orm import noload
 from advanced_alchemy.utils.text import slugify
 from litestar.stores.memory import MemoryStore
+from sqlalchemy.dialects import postgresql  # Change dialect if needed
 
 # Vietnam-specific property constants
 VIETNAM_PROPERTY_CATEGORIES = [
@@ -59,7 +60,7 @@ class PropertyRepository(SQLAlchemyAsyncRepository[Property]):
 
 
 class PropertySearchParams(BaseModel):
-    
+
     search: Optional[str] = Parameter(
         title="Search Query", description="Search query to check in the description"
     )
@@ -171,12 +172,18 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         pagination: LimitOffset,
         user_id: uuid.UUID | None = None,
     ) -> OffsetPagination[Property]:
-        query = select(Property).options(
-            joinedload(Property.address),
-            joinedload(Property.owner),
+        query = (
+            select(Property)
+            .options(
+                joinedload(Property.address),
+                joinedload(Property.owner),
+            )
+            .join(Property.owner)
+            .where(User.id != user_id)
         )
 
-        if search_param.lat and search_param.lng:
+        if search_param.lat != None and search_param.lng != None:
+            query = query.join(Property.address)
             point = func.ST_SetSRID(
                 func.ST_MakePoint(search_param.lng, search_param.lat), 4326
             )
@@ -187,7 +194,11 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
                     search_param.radius * 1000,
                 )
             )
-
+        print(
+            query.compile(
+                dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+            )
+        )
         # Apply price range filter
         if search_param.min_price is not None:
             query = query.where(Property.price >= search_param.min_price)
@@ -217,13 +228,10 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         # Search query
         if search_param.search:
             query = query.where(Property.description.contains(search_param.search))
-        # Apply Vietnam-specific filters
-        if search_param.city:
-            query = query.where(Property.address.city.ilike(f"%{search_param.city}%"))
+            # Apply Vietnam-specific filters
+            query = query.where(Address.city.ilike(f"%{search_param.city}%"))
         if search_param.district:
-            query = query.where(
-                Property.address.district.ilike(f"%{search_param.district}%")
-            )
+            query = query.where(Address.street.ilike(f"%{search_param.district}%"))
 
         # Apply date filter
         if search_param.created_after:
@@ -252,7 +260,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             .all(),
         )
         total = await self.count()
-        
+
         user_search_service = UserSearchService(session=self.repository.session)
         await user_search_service.create(
             {

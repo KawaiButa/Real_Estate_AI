@@ -1,0 +1,79 @@
+import torch
+import numpy as np
+import chromadb
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+from data import PropertyEmbeddingDataset
+property_field_list = ["price", "average_rating", "lat", "lon", "type_enc"]
+
+def build_chroma_index(
+    model,
+    property_df,
+    batch_size=128,
+    collection_name="property_collection",
+    db_path="db",  # Path to store the Chroma database
+):
+    """
+    Builds a ChromaDB index for property embeddings using batched processing.
+    It uploads embeddings along with metadata like 'price', 'rating', 'lat', 'lon', etc.
+    If the index already exists, it will append new embeddings to the existing collection.
+
+    Args:
+        model: The model with a prop_tower(texts, features) method.
+        property_df (pd.DataFrame): The DataFrame containing property details.
+        batch_size (int): Batch size for processing.
+        collection_name (str): The name of the ChromaDB collection.
+        db_path (str): Path to the ChromaDB database.
+    """
+    # Initialize ChromaDB client
+    client = chromadb.Client()
+    
+    # Check if the collection already exists, if so, use it
+    if collection_name not in [collection.name for collection in client.list_collections()]:
+        collection = client.create_collection(collection_name)
+    else:
+        collection = client.get_collection(collection_name)
+    
+    # Prepare data
+    model.eval()
+    all_embs = []
+    all_ids = []
+    all_metadata = []
+    dataset = PropertyEmbeddingDataset(
+        property_df[property_field_list].values.astype(np.float32),
+        property_df["text"].values,
+    )
+    dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=False)
+
+    # Process embeddings in batches
+    for batch in tqdm(dataloader, desc="Building Chroma index"):
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        batch_texts = batch["text"]
+        batch_feats = batch["data"].to(device)
+
+        with torch.no_grad():
+            emb, _ = model.prop_tower(batch_texts, batch_feats)
+            emb = emb.cpu().numpy()
+            faiss.normalize_L2(emb)
+            all_embs.append(emb)
+            
+            # Collect metadata and IDs
+            all_ids.extend(batch["id"])
+            all_metadata.extend([
+                {"price": price, "rating": rating, "lat": lat, "lon": lon, "type": type_enc}
+                for price, rating, lat, lon, type_enc in zip(batch["price"], batch["rating"], batch["lat"], batch["lon"], batch["type_enc"])
+            ])
+
+    # Stack embeddings
+    all_embs = np.vstack(all_embs)
+
+    collection.add(
+        ids=[str(id) for id in all_ids],
+        embeddings=all_embs.tolist(),
+        metadatas=all_metadata,
+    )
+    # Optionally, you can persist the Chroma database
+    # The database will persist automatically, but you can specify a path to store it.
+    # client.persist(database_path=db_path)
+
+    print(f"Successfully uploaded {len(all_embs)} embeddings to ChromaDB.")

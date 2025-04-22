@@ -19,7 +19,7 @@ class UserAction(BaseModel):
     __tablename__ = "user_actions"
     user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         PG_UUID(as_uuid=True),
-        ForeignKey("images.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         unique=False,
     )

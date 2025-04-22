@@ -1,13 +1,14 @@
-# File: src/app/domain/properties/controllers/ratings.py
-from typing import Any
+from litestar.background_tasks import BackgroundTask
+from typing import Annotated, Any
 from uuid import UUID
-from litestar import Controller, Request, post, get
+from litestar import Controller, Request, Response, post, get
 from litestar.di import Provide
 from litestar.pagination import OffsetPagination
 from litestar.security.jwt.token import Token
-
+from litestar.params import Body
+from litestar.enums import RequestEncodingType
 from database.utils import provide_pagination_params
-from database.models.review import Review, ReviewResponse
+from database.models.review import Review, ReviewResponse, ReviewSchema
 from database.models.user import User
 from domains.review.dtos import (
     ReviewCreateDTO,
@@ -30,10 +31,19 @@ class RatingController(Controller):
     async def create_review(
         self,
         rating_service: RatingService,
-        data: ReviewCreateDTO,
+        data: Annotated[
+            ReviewCreateDTO, Body(media_type=RequestEncodingType.MULTI_PART)
+        ],
+        property_id: UUID,
         request: Request[User, Token, Any],
-    ) -> Review:
-        return await rating_service.create_review(data, request.user.id)
+    ) -> Response[Review]:
+        review = await rating_service.create_review(data, property_id, request.user.id)
+        return Response(
+            content=rating_service.to_schema(review, schema_type=ReviewSchema),
+            background=BackgroundTask(
+                rating_service._update_property_rating, property_id
+            ),
+        )
 
     @get(
         dependencies={
@@ -64,4 +74,15 @@ class RatingController(Controller):
     ) -> ReviewResponse:
         return await rating_service.add_response(
             rating_id, property_id, request.user.id, data.response_text
+        )
+
+    @post("/{rating_id: uuid}/toggle-helpful", status_code=200)
+    async def toggle_helpful_vote(
+        self,
+        rating_service: RatingService,
+        rating_id: UUID,
+        request: Request[User, Token, Any],
+    ) -> str:
+        return await rating_service.toggle_helpful_vote(
+            rating_id=rating_id, user_id=request.user.id
         )

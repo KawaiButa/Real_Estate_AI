@@ -1,18 +1,17 @@
 from dataclasses import dataclass
 from typing import Optional
+from fastapi import UploadFile
 from pydantic import BaseModel, Field, field_validator
 from uuid import UUID
 from litestar.params import Parameter
 
 
 class ReviewCreateDTO(BaseModel):
-    property_id: UUID
     rating: int = Field(..., ge=1, le=5)
     review_text: str = Field(..., min_length=50, max_length=2000)
-    media_urls: list[str] = Field(default_factory=list)
-    anonymous: bool = False
+    image_list: Optional[list[UploadFile]]
 
-    @field_validator("media_urls")
+    @field_validator("image_list")
     def validate_media(cls, v):
         if len(v) > 5:
             raise ValueError("Maximum 5 media attachments allowed")

@@ -7,8 +7,9 @@ from sqlalchemy import (
     CheckConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship, Mapped, mapped_column
+from sqlalchemy.orm import relationship, Mapped, mapped_column, foreign
 import uuid
+from database.models.image import Image
 from database.models.base import BaseModel, BaseSchema
 
 if TYPE_CHECKING:
@@ -41,16 +42,20 @@ class Review(BaseModel):
     responses: Mapped[list["ReviewResponse"]] = relationship(
         "ReviewResponse", lazy="joined"
     )
-    media: Mapped[list["ReviewMedia"]] = relationship("ReviewMedia", lazy="joined")
+    images: Mapped[list[Image]] = relationship(
+        "Image",
+        primaryjoin=(
+            "and_(foreign(Image.model_id) == Review.id, "
+            "Image.model_type == 'review')"
+        ),
+        foreign_keys=[foreign(Image.model_id)],
+        remote_side=[Image.model_id],
+        backref="review",
+        lazy="selectin",
+    )
     helpful_votes: Mapped[list["HelpfulVote"]] = relationship(
         "HelpfulVote", lazy="joined"
     )
-
-
-class ReviewMediaSchema(BaseSchema):
-    review_id: uuid.UUID
-    media_url: str
-    media_type: str
 
 
 class HelpfulVoteSchema(BaseSchema):
@@ -67,7 +72,6 @@ class ReviewSchema(BaseSchema):
     property_id: uuid.UUID
     reviewer_id: uuid.UUID
     reviewer: "UserSchema"
-    media: list[ReviewMediaSchema] = []
     helpful_votes: list[HelpfulVoteSchema] = []
     responses: list[ReviewResponseSchema] = []
 

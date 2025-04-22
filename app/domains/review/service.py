@@ -6,6 +6,8 @@ from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy import select, func, and_, update
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
+from database.models.property import Property
+from domains.image.service import ImageService
 from domains.property_verification.service import VerificationService
 from database.models.property_verification import PropertyVerification
 from database.models.review import HelpfulVote, Review, ReviewResponse
@@ -13,6 +15,7 @@ from domains.properties.service import PropertyService
 from domains.review.dtos import ReviewCreateDTO, ReviewFilterDTO
 from litestar.pagination import OffsetPagination
 from advanced_alchemy.filters import LimitOffset
+from litestar.background_tasks import BackgroundTask
 
 
 class RatingRepository(SQLAlchemyAsyncRepository):
@@ -62,26 +65,55 @@ class RatingRepository(SQLAlchemyAsyncRepository):
                 )
 
 
+class ReviewResponseRepository(SQLAlchemyAsyncRepository[ReviewResponse]):
+    model_type = ReviewResponse
+
+
+class ReviewResponseService(SQLAlchemyAsyncRepositoryService[ReviewResponse]):
+    repository_type = ReviewResponseRepository
+
+
+class HelpfulVoteRepository(SQLAlchemyAsyncRepository[HelpfulVote]):
+    model_type = HelpfulVote
+
+
+class HelpfulVoteService(SQLAlchemyAsyncRepositoryService[HelpfulVote]):
+    repository_type = HelpfulVoteRepository
+
+
 class RatingService(SQLAlchemyAsyncRepositoryService[Review]):
     repository_type = RatingRepository
 
-    async def create_review(self, data: ReviewCreateDTO, user_id: UUID) -> Review:
+    async def create_review(
+        self, data: ReviewCreateDTO, property_id: UUID, user_id: UUID
+    ) -> Review:
         verification_service = VerificationService(session=self.repository.session)
         verification = await verification_service.get_one_or_none(
-            PropertyVerification.property_id == data.property_id,
+            PropertyVerification.property_id == property_id,
             PropertyVerification.user_id == user_id,
         )
         if not verification:
             raise NotAuthorizedException("Property verification required")
 
         # Fraud detection checks
-        await self._fraud_checks(user_id, data.property_id)
+        await self._fraud_checks(user_id, property_id)
         data = data.model_dump()
         data["reviewer_id"] = user_id
         # Create review
         review = await self.create(data=data, auto_refresh=True)
-
-        await self._update_property_rating(data.property_id)
+        image_services = ImageService(session=self.repository.session)
+        images = await image_services.create_many(
+            [
+                {
+                    "url": (await self.supabase_service.upload_file(image)),
+                    "model_id": review.id,
+                    "model_type": "review",
+                }
+                for image in data.image_list
+            ],
+            auto_commit=False,
+        )
+        review.images = images
         await self.repository.session.commit()
         return review
 
@@ -132,7 +164,37 @@ class RatingService(SQLAlchemyAsyncRepositoryService[Review]):
     async def add_response(
         self, review_id: UUID, property_id: UUID, user_id: UUID, content: str
     ) -> ReviewResponse:
-        pass
+        property_service = PropertyService(session=self.repository.session)
+        property = await property_service.get_one_or_none(Property.id == property_id)
+        if not property:
+            raise ValidationException("Property not found")
+        if property.owner_id != user_id:
+            raise NotAuthorizedException("You are not owner of this property.")
+        review_response_service = ReviewResponseService(session=self.repository.session)
+        return await review_response_service.create(
+            {
+                "review_id": review_id,
+                "response_text": content,
+            },
+            auto_commit=True,
+            auto_refresh=True,
+        )
+
+    async def toggle_helpful_vote(self, rating_id: UUID, user_id: UUID) -> HelpfulVote:
+        helpful_vote_service = HelpfulVoteService(session=self.repository.session)
+        helpful_vote = await helpful_vote_service.get_one_or_none(
+            HelpfulVote.review_id == rating_id, HelpfulVote.voter_id == user_id
+        )
+        if helpful_vote:
+            return await helpful_vote_service.delete(helpful_vote.id)
+        return await helpful_vote_service.create(
+            {
+                "review_id": rating_id,
+                "voter_id": user_id,
+            },
+            auto_commit=True,
+            auto_refresh=True,
+        )
 
 
 async def provide_review_service(
