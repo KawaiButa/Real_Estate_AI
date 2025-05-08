@@ -2,24 +2,25 @@ import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime
 import os
-from typing import Optional
+from typing import Dict, Optional
 from uuid import UUID
 import uuid
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
+import numpy as np
 from pydantic import BaseModel, ValidationInfo, field_validator
 import requests
 from sqlalchemy import Enum, asc, desc, func, select
 from litestar.params import Parameter
 from litestar.openapi.spec.example import Example
 from litestar.exceptions import ValidationException, NotAuthorizedException
-from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.orm import joinedload
+from domains.user_action.service import UserActionRepository
 from domains.user_search.service import UserSearchService
 from database.models.property_type import PropertyType
 from domains.address.service import AddressService
 from database.models.user import User
 from domains.properties.dtos import (
-    CreatePropertyDTO,
     CreatePropertySchema,
     UpdatePropertySchema,
 )
@@ -29,11 +30,12 @@ from database.models.address import Address
 from database.models.property import Property
 from sqlalchemy.ext.asyncio import AsyncSession
 from advanced_alchemy.filters import LimitOffset
-from litestar.pagination import OffsetPagination
+from litestar.pagination import OffsetPagination, CursorPagination
 from sqlalchemy.orm import noload
 from advanced_alchemy.utils.text import slugify
 from litestar.stores.memory import MemoryStore
-from sqlalchemy.dialects import postgresql  # Change dialect if needed
+from configs.pinecone import property_index
+from pinecone import Vector
 
 # Vietnam-specific property constants
 VIETNAM_PROPERTY_CATEGORIES = [
@@ -143,6 +145,12 @@ class PropertySearchParams(BaseModel):
         title="Order Direction",
         description="Sorting order (asc or desc)",
     )
+    recommended: Optional[bool] = Parameter(
+        default=False,
+        query="recommended",
+        title="Toggle recommendation system",
+        description="Whether using the recommender system or not",
+    )
 
     @field_validator("transaction_type", "status", "property_category")
     def validate_enum_fields(cls, value, info: ValidationInfo):
@@ -171,7 +179,68 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         search_param: PropertySearchParams,
         pagination: LimitOffset,
         user_id: uuid.UUID | None = None,
+    ) -> OffsetPagination[Property] | CursorPagination[str, Property]:
+        """
+        Route between recommendation (cursor-based) and normal search (offset-based).
+        """
+        if search_param.recommended and user_id:
+            return await self._search_recommended(search_param, pagination, user_id)
+        return await self._search_normal(search_param, pagination, user_id)
+
+    async def _search_recommended(
+        self,
+        search_param: PropertySearchParams,
+        pagination: LimitOffset,
+        user_id: uuid.UUID,
+    ) -> CursorPagination[str, Property]:
+        # 1) Build Pinecone metadata filter
+        meta_filter = self._build_pinecone_filter(search_param)
+        # 2) Generate user embedding from past interactions
+        user_embedding = await self._compute_user_embedding(user_id)
+        # 3) Query Pinecone
+        pine_res = property_index.query(
+            vector=user_embedding,
+            filter=meta_filter,
+            top_k=pagination.limit,
+            include_metadata=True,
+            # next_page_token=search_param.next_page_token,
+        )
+        ids = [m["id"] for m in pine_res["matches"]]
+        props = await self._fetch_properties_from_ids(ids)
+        await self._record_search(user_id, search_param, recommended=True)
+        return CursorPagination(
+            items=props,
+            cursor=pine_res.get("next_page_token"),
+            results_per_page=pagination.limit
+        )
+
+    async def _search_normal(
+        self,
+        search_param: PropertySearchParams,
+        pagination: LimitOffset,
+        user_id: uuid.UUID | None,
     ) -> OffsetPagination[Property]:
+        query = self._build_sql_query(search_param, user_id)
+        order_exp = self._build_order_expression(search_param)
+        paginated = (
+            query.order_by(order_exp).offset(pagination.offset).limit(pagination.limit)
+        )
+        result = await self.repository.session.execute(paginated)
+        items = result.scalars().unique().all()
+        total = await self.count()
+        await self._record_search(user_id, search_param, recommended=False)
+        return OffsetPagination(
+            items=items,
+            total=total,
+            limit=pagination.limit,
+            offset=pagination.offset,
+        )
+
+    def _build_sql_query(
+        self,
+        search_param: PropertySearchParams,
+        user_id: uuid.UUID | None,
+    ):
         query = (
             select(Property)
             .options(
@@ -182,8 +251,8 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             .join(Property.owner)
             .where(User.id != user_id)
         )
-
-        if search_param.lat != None and search_param.lng != None:
+        # geo filter
+        if search_param.lat is not None and search_param.lng is not None:
             query = query.join(Property.address)
             point = func.ST_SetSRID(
                 func.ST_MakePoint(search_param.lng, search_param.lat), 4326
@@ -195,18 +264,12 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
                     search_param.radius * 1000,
                 )
             )
-        print(
-            query.compile(
-                dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
-            )
-        )
-        # Apply price range filter
+        # price filters
         if search_param.min_price is not None:
             query = query.where(Property.price >= search_param.min_price)
         if search_param.max_price is not None:
             query = query.where(Property.price <= search_param.max_price)
-
-        # Apply categorical filters
+        # categorical
         if search_param.property_category:
             query = query.where(
                 Property.property_category == search_param.property_category
@@ -217,68 +280,114 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             )
         if search_param.status:
             query = query.where(Property.status == search_param.status)
-
-        # Apply numeric filters
+        # numeric
         if search_param.min_bedrooms:
             query = query.where(Property.bedrooms >= search_param.min_bedrooms)
         if search_param.min_bathrooms:
             query = query.where(Property.bathrooms >= search_param.min_bathrooms)
         if search_param.min_sqm:
             query = query.where(Property.sqm >= search_param.min_sqm)
-
-        # Search query
+        # text and location
         if search_param.search:
             query = query.where(Property.description.contains(search_param.search))
-            # Apply Vietnam-specific filters
             query = query.where(Address.city.ilike(f"%{search_param.city}%"))
         if search_param.district:
             query = query.where(Address.street.ilike(f"%{search_param.district}%"))
-
-        # Apply date filter
+        # date
         if search_param.created_after:
             query = query.where(Property.created_at >= search_param.created_after)
+        return query
+
+    def _build_order_expression(self, search_param: PropertySearchParams):
         if search_param.order_by == PropertyOrder.TITLE:
-            order_field = Property.title
+            field = Property.title
         elif search_param.order_by == PropertyOrder.PRICE:
-            order_field = Property.price
+            field = Property.price
         else:
-            order_field = Property.created_at
+            field = Property.created_at
+        return (
+            asc(field) if search_param.order_direction.lower() == "asc" else desc(field)
+        )
 
-        if search_param.order_direction.lower() == "asc":
-            order_expression = asc(order_field)
-        else:
-            order_expression = desc(order_field)
-        paginated_query = (
-            query.offset(pagination.offset)
-            .limit(pagination.limit)
-            .order_by(order_expression)
-        )
-        # Execute queries concurrently
-        items = (
-            (await self.repository.session.execute(paginated_query))
-            .scalars()
-            .unique()
-            .all(),
-        )
-        total = await self.count()
+    def _build_pinecone_filter(self, search_param: PropertySearchParams) -> dict:
+        """
+        Translate SQL filters into Pinecone metadata filter syntax.
+        """
+        mf: dict = {}
+        if search_param.property_category:
+            mf["property_category"] = {"$eq": search_param.property_category}
+        if search_param.transaction_type:
+            mf["transaction_type"] = {"$eq": search_param.transaction_type}
+        if search_param.status:
+            mf["status"] = {"$eq": search_param.status}
+        if search_param.min_price is not None:
+            mf.setdefault("price", {})["$gte"] = search_param.min_price
+        if search_param.max_price is not None:
+            mf.setdefault("price", {})["$lte"] = search_param.max_price
+        if search_param.min_bedrooms:
+            mf.setdefault("bedrooms", {})["$gte"] = search_param.min_bedrooms
+        if search_param.min_bathrooms:
+            mf.setdefault("bathrooms", {})["$gte"] = search_param.min_bathrooms
+        if search_param.min_sqm:
+            mf.setdefault("sqm", {})["$gte"] = search_param.min_sqm
+        if search_param.city:
+            mf["city"] = {"$ilike": f"%{search_param.city}%"}
+        if search_param.district:
+            mf["street"] = {"$ilike": f"%{search_param.district}%"}
+        return mf
 
-        user_search_service = UserSearchService(session=self.repository.session)
-        await user_search_service.create(
-            {
-                "user_id": user_id,
-                "search_query": search_param.search,
-                "type": search_param.property_category,
-                "min_price": search_param.min_price,
-                "max_price": search_param.max_price,
-            },
-            auto_commit=True,
+    async def _fetch_properties_from_ids(self, ids: list[str]) -> list[Property]:
+        query = (
+            select(Property)
+            .options(joinedload(Property.address), joinedload(Property.owner))
+            .where(Property.id.in_(ids))
         )
-        return OffsetPagination(
-            items=items[0],
-            total=total,
-            limit=pagination.limit,
-            offset=pagination.offset,
+        result = await self.repository.session.execute(query)
+        props = result.scalars().all()
+        return props
+
+    async def _record_search(
+        self,
+        user_id: uuid.UUID | None,
+        search_param: PropertySearchParams,
+        recommended: bool = False,
+    ):
+        data = {
+            "user_id": user_id,
+            "search_query": search_param.search,
+            "type": search_param.property_category,
+            "min_price": search_param.min_price,
+            "max_price": search_param.max_price,
+            "recommended": recommended,
+        }
+        svc = UserSearchService(session=self.repository.session)
+        await svc.create(data, auto_commit=True)
+
+    async def fetch_pinecone_document_by_id(
+        self, doc_ids: list[uuid.UUID]
+    ) -> Dict[str, Vector]:
+        """
+        Fetch a single vector document (and its metadata) by ID from Pinecone.
+        """
+        response = property_index.fetch(ids=doc_ids, include_metadata=True)
+        vectors = response.vectors
+        return vectors
+
+    async def _compute_user_embedding(self, user_id: uuid.UUID) -> list[float]:
+        user_action_repository = UserActionRepository(session=self.repository.session)
+        properties_action = await user_action_repository.get_relevant_properties(
+            user_id=user_id
         )
+        if len(properties_action) < 5:
+            return next(
+                iter(property_index.fetch(["0"], namespace="Mean").vectors.values())
+            ).values
+        result = await self.fetch_pinecone_document_by_id(
+            [UUID(id) for id in properties_action.keys()]
+        )
+        vectors = [value.values for value in result.values()]
+        mean_vector = np.mean(vectors, axis=0).tolist()
+        return mean_vector
 
     async def create(self, data: CreatePropertySchema, user_id: uuid.UUID) -> Property:
         # Vietnam-specific validation
@@ -523,6 +632,12 @@ async def query_params_extractor(
         title="Order Direction",
         description="Sorting order (asc or desc)",
     ),
+    recommended: Optional[bool] = Parameter(
+        default=False,
+        query="recommended",
+        title="Toggle recommendation system",
+        description="Whether using the recommender system or not",
+    ),
 ) -> PropertySearchParams:
     return PropertySearchParams(
         search=search,
@@ -543,6 +658,7 @@ async def query_params_extractor(
         direction_facing=direction_facing,
         order_by=order_by,
         order_direction=order_direction,
+        recommended=recommended,
     )
 
 

@@ -63,7 +63,6 @@ def schema_upgrades() -> None:
                nullable=True)
         batch_op.create_unique_constraint(batch_op.f('uq_user_searches_id'), ['id'])
         batch_op.create_foreign_key(batch_op.f('fk_user_searches_user_id_users'), 'users', ['user_id'], ['id'], ondelete='SET NULL')
-        batch_op.drop_column('city')
 
     # ### end Alembic commands ###
 

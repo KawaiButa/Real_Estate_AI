@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 import random
 import uuid
 from faker import Faker
+from domains.address.service import AddressService
 from database.models.address import Address
 from database.models.role import Role
 from domains.auth.repository import UserRepository
@@ -10,6 +11,7 @@ from database.models.user import User
 from passlib.hash import bcrypt
 from configs.sqlalchemy import sqlalchemy_config
 from sqlalchemy import select
+from advanced_alchemy.utils.fixtures import open_fixture
 
 fake = Faker("vi_VN")
 
@@ -22,12 +24,9 @@ def generate_unique_email():
 class UserFactory(BaseFactory):
     repository = UserRepository
 
-    async def seed(self, count: int) -> None:
+    async def seed(self, count: int, fixture_path: str = "seed/fixtures") -> None:
         async with sqlalchemy_config.get_session() as session:
             try:
-                address_ids = (
-                    (await session.execute(select(Address.id))).scalars().all()
-                )
                 customer = (
                     await session.execute(
                         select(Role).filter(Role.name == "customer"),
@@ -36,6 +35,36 @@ class UserFactory(BaseFactory):
                 partner = (
                     await session.execute(select(Role).filter(Role.name == "partner"))
                 ).scalar()
+                address_ids = (
+                    (await session.execute(select(Address.id))).scalars().all()
+                )
+                hashed_password = bcrypt.hash("123456")
+                if fixture_path:
+                    user_data = open_fixture(fixture_path, "hosts")
+                    user_data = [
+                        {
+                            "id": uuid.UUID(int=int(data["id"])),
+                            "name": data["name"],
+                            "created_at": (
+                                datetime.strptime(data["since"], "%Y-%m-%d")
+                                if len(data["since"]) > 0
+                                else datetime.now(timezone.utc)
+                            ),
+                            "roles": [partner],
+                            "address_id": random.choice(address_ids),
+                            "verified": fake.boolean(),
+                            "password": hashed_password,
+                            "phone": fake.phone_number(),
+                            "email": generate_unique_email(),
+                            "reset_password_token": None,
+                            "reset_password_expires": None,
+                        }
+                        for data in user_data
+                    ]
+                    await self.repository(session=session).add_many(
+                        User(**data) for data in user_data
+                    )
+                    return
                 for _ in range(count):
                     user = User(
                         id=str(uuid.uuid4()),

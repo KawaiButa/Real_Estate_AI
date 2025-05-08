@@ -125,3 +125,19 @@ def sinusoidal_encode(row):
     return pd.Series(
         {"sin_lat": sin_lat, "cos_lat": cos_lat, "sin_lon": sin_lon, "cos_lon": cos_lon}
     )
+def load_grouped_reviews(data_path: str, decay_rate: float):
+    reviews = pd.read_csv(data_path, parse_dates=["date"])
+    today = pd.to_datetime(datetime.now().date())
+    reviews = reviews.dropna(subset=["comments"])
+    reviews["comments"] = reviews["comments"].apply(clean_html_description)
+    reviews["age_days"] = (today - reviews["date"]).dt.days.clip(lower=0)
+    # compute decay weight
+    reviews["weight"] = np.exp(-decay_rate * reviews["age_days"])
+    grouped = (
+    reviews.groupby("listing_id")
+    .apply(
+        lambda df: list(zip(df["comments"].astype(str).tolist(), df["weight"].tolist()))
+    )
+    .to_dict()
+    )
+    return grouped

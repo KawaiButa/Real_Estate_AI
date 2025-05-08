@@ -45,14 +45,14 @@ def generate_precise_address() -> dict:
     If the call fails, it falls back to Faker.
     """
     prompt = (
-        "You are an expert in Vietnamese addresses. Generate a precise and realistic address in Vietnam. "
+        "You are an expert in New York addresses. Generate a precise and realistic address in New York state. "
         "Include details such as the street name, district/ward, and postal code. "
         "Return the address in the following JSON format without any additional text: "
         '{"street": "<street address>", "postal_code": "<postal code>", "neighborhood": "<full address>"}'
     )
     try:
         response = client.ChatCompletion.create(
-            model="gpt-4o-mini",  # Using GPT-3.5 Turbo for free generation
+            model="gpt-3.5-turbo",  # Using GPT-3.5 Turbo for free generation
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
             max_tokens=150,

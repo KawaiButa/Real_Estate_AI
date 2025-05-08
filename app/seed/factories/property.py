@@ -1,6 +1,10 @@
 import random
+import uuid
 from faker import Faker
 from sqlalchemy import select
+from database.models.image import Image
+from domains.address.service import AddressService
+from domains.image.service import ImageService
 from database.models.property_type import PropertyType
 from database.models.role import Role
 from domains.properties.service import (
@@ -12,6 +16,7 @@ from openai import OpenAI
 from seed.factories.base import BaseFactory
 from database.models.property import Property
 from database.models.user import User
+from advanced_alchemy.utils.fixtures import open_fixture
 from database.models.address import Address
 from configs.sqlalchemy import sqlalchemy_config
 from advanced_alchemy.utils.text import slugify
@@ -90,12 +95,105 @@ def generate_html_description(
     return description
 
 
+def parse_price(raw_price: str) -> float:
+    try:
+        price_str = str(raw_price)
+        cleaned = price_str[1:].replace(",", "") if len(price_str) > 0 else "0.0"
+        return float(cleaned)
+    except (ValueError, TypeError) as e:
+        print(f"Failed to parse price '{raw_price}': {e}")
+        return 0.0
+
+
 class PropertyFactory(BaseFactory):
     repository = PropertyRepository
 
-    async def seed(self, count: int = 10) -> None:
+    async def seed(self, count: int = 10, fixture_path: str = "seed/fixtures") -> None:
         async with sqlalchemy_config.get_session() as session:
             try:
+                if fixture_path:
+                    address_service = AddressService(session=session)
+                    image_service = ImageService(session=session)
+                    property_data = open_fixture(fixture_path, "properties")
+                    # property_data = property_data[:10]
+                    property_data = [
+                        {
+                            "id": uuid.UUID(int=int(data["id"])),
+                            "property_type_id": (
+                                await PropertyType.as_unique_async(
+                                    session=session,
+                                    name=data["room_type"],
+                                    slug=slugify(data["room_type"]),
+                                )
+                            ).id,
+                            "description": data["description"],
+                            "property_category": data["room_type"],
+                            "bedrooms": int(
+                                float(
+                                    data["bedrooms"]
+                                    if len(data["bedrooms"]) > 0
+                                    else "0.0"
+                                )
+                            ),
+                            "bathrooms": int(
+                                float(
+                                    data["bathrooms"]
+                                    if len(data["bathrooms"]) > 0
+                                    else "0.0"
+                                )
+                            ),
+                            "transaction_type": random.choice(
+                                VIETNAM_TRANSACTION_TYPES
+                            ),
+                            "title": data["name"],
+                            "sqm": round(random.uniform(10.0, 1000.0), 2),
+                            "status": random.choice([True, False]),
+                            "average_rating": (
+                                float(data["review_scores_rating"])
+                                if len(data["review_scores_rating"]) > 0
+                                else 0.0
+                            ),
+                            "price": parse_price(data["price"]) * 25000,
+                            "owner_id": uuid.UUID(int=int(data["host_id"])),
+                            "active": True,
+                            "address_id": (
+                                await address_service.create_address(
+                                    latitude=float(data["latitude"]),
+                                    longitude=float(data["longitude"]),
+                                    street=data["neighbourhood_cleansed"],
+                                    neighborhood=data["neighbourhood_cleansed"],
+                                    city=data["neighbourhood_group_cleansed"],
+                                )
+                            ).id,
+                            "image_urls": data["image_urls"],
+                        }
+                        for data in property_data
+                    ]
+                    property_list = []
+                    image_list = []
+                    for data in property_data:
+                        id = data["id"]
+                        image_urls = data["image_urls"]
+                        data.pop("image_urls")
+                        if not data["property_type_id"]:
+                            print(data)
+                            continue
+                        property_list.append(Property(**data))
+                        image_list.extend(
+                            [
+                                Image(
+                                    **{
+                                        "url": url,
+                                        "model_id": id,
+                                        "model_type": "property",
+                                    }
+                                )
+                                for url in image_urls
+                            ]
+                        )
+                    await self.repository(session=session).add_many(data=property_list)
+                    await image_service.create_many(data=image_list)
+                    return
                 user_ids = (
                     (
                         await session.execute(
@@ -168,7 +266,8 @@ class PropertyFactory(BaseFactory):
                         address_id=address_id,
                     )
                     await self.repository(session=session).add(property_obj)
-            except:
+            except Exception as e:
+                print(str(e))
                 await session.rollback()
                 raise
             finally:

@@ -93,13 +93,6 @@ class User(BaseModel):
     tags: Mapped[list[Tag]] = relationship(
         "Tag", secondary=UserTag.__table__, lazy="selectin"
     )
-    min_price: Mapped[float] = mapped_column(
-        Numeric(12, 2, asdecimal=False), nullable=True
-    )
-    max_price: Mapped[float] = mapped_column(
-        Numeric(12, 2, asdecimal=False), nullable=True
-    )
-
 
 class UserSchema(BaseSchema):
     name: str
