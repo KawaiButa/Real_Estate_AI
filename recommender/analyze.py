@@ -8,6 +8,7 @@ from tqdm import tqdm
 
 from tower import TwoTowerRec
 from train_airbab import (
+    PROPERTY_FIELD_LIST,
     AirbnbRecDataset,
     collate_fn,
     validate,
@@ -15,15 +16,6 @@ from train_airbab import (
 )
 property_type_list = []
 DECAY_RATE = 0.001
-PROPERTY_FIELD_LIST = [
-    "latitude",
-    "longitude",
-    "accommodates",
-    "bathrooms",
-    "bedrooms",
-    "price",
-    "property_type",
-]
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
