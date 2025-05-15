@@ -32,6 +32,7 @@ dependencies = [
     "faiss-cpu (>=1.10.0,<2.0.0)",
     "sentence-transformers (>=4.0.2,<5.0.0)",
     "beautifulsoup4 (>=4.13.3,<5.0.0)",
+    "pinecone (>=6.0.2,<7.0.0)",
 ]
 
 [tool.poetry]
