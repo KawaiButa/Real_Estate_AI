@@ -23,9 +23,9 @@ ENV PATH="/root/.local/bin:$PATH"
 COPY pyproject.toml poetry.lock* ./
 
 # Install dependencies using Poetry
-RUN poetry config virtualenvs.create false \
-    && poetry lock \
-    && poetry install --no-interaction --no-ansi
+RUN poetry config virtualenvs.create false && \
+    poetry lock  && \
+    poetry install --no-interaction --no-ansi
 # Copy the rest of your application code
 COPY . .
 
