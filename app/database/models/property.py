@@ -106,13 +106,57 @@ class Property(BaseModel):
     owner: Mapped["User"] = relationship(
         "User", back_populates="properties", lazy="joined"
     )
-    reviews: Mapped[list["Review"]] = relationship(
-        "Review", lazy="noload"
-    )
+    reviews: Mapped[list["Review"]] = relationship("Review", lazy="noload")
     address: Mapped["Address"] = relationship("Address", uselist=False, lazy="selectin")
     tags: Mapped[list[Tag]] = relationship(
         "Tag", secondary=PropertyTag.__table__, lazy="selectin"
     )
+
+    def to_string(self) -> str:
+        """
+        Converts a Property instance into a descriptive string.
+
+        :param self: An instance of the Property model
+        :return: A formatted string representing the property
+        """
+        lines = [
+            f"Tên bất động sản: {self.title}",
+            f"Loại giao dịch (Mua hay ): {self.transaction_type}",
+            f"Loại bất động sản: {self.property_type.name if self.property_type else 'N/A'}",
+            f"Giá: {self.price:,.2f} VND",
+            f"Phòng ngủ: {self.bedrooms}",
+            f"Phòng tắm: {self.bathrooms}",
+            f"Diện tích (mét vuông): {self.sqm} sqm",
+            f"Tình trạng: {'Còn trống' if self.status else 'Không khả dụng'}",
+            f"Điểm đánh giá trung bình: {self.average_rating}",
+            f"Mô tả: {self.description}",
+        ]
+
+        # Address details
+        if self.address:
+            address = self.address
+            lines.append(
+                f"Địa chỉ: {getattr(address, 'full_address', 'N/A')}, Kinh độ: {getattr(address, "latitude", "N/A")}, Vĩ độ: {getattr(address, "longitude", "N/A")}"
+            )
+
+        # Owner details
+        if self.owner:
+            owner = self.owner
+            lines.append(f"Chủ sở hữu: {getattr(owner, 'name', 'N/A')}")
+
+        # Tags
+        if self.tags:
+            tag_names = [tag.name for tag in self.tags]
+            lines.append("Tags: " + ", ".join(tag_names))
+
+        review_string = []
+        if self.reviews:
+            for review in self.reviews:
+                review_string.append(
+                    f"Reviewer: {getattr(review.reviewer, "name", "N/A")} - {getattr(review, "review_text", "N/A")}"
+                )
+        lines.append(f"Review: {'.'.join(review_string)}")
+        return "\n".join(lines)
 
 
 class PropertySchema(BaseSchema):

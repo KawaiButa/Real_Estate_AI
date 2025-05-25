@@ -17,6 +17,8 @@ from seed.factories.address import AddressFactory
 from seed.factories.user_search import UserSearchFactory
 from seed.seed import Seeder
 from domains.news.controller import ArticleController
+from domains.chat_message.controller import ChatMessageController
+from domains.chat_session.controller import ChatSessionController
 from domains.admin.controller import AdminController
 from domains.profile.controller import ProfileController
 from domains.registrations.controller import PartnerRegistrationController
@@ -93,6 +95,8 @@ routes: list[ControllerRouterHandler] = [
     PropertyTypeController,
     VerificationController,
     UserActionController,
+    ChatMessageController,
+    ChatSessionController,
     schema,
     helloWorld,
     create_static_files_router(

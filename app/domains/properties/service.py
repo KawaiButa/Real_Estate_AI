@@ -36,8 +36,8 @@ from advanced_alchemy.utils.text import slugify
 from litestar.stores.memory import MemoryStore
 from configs.pinecone import property_index
 from pinecone import Vector
+from firebase_admin import credentials, messaging
 
-# Vietnam-specific property constants
 VIETNAM_PROPERTY_CATEGORIES = [
     "apartment",
     "villa",
@@ -211,7 +211,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         return CursorPagination(
             items=props,
             cursor=pine_res.get("next_page_token"),
-            results_per_page=pagination.limit
+            results_per_page=pagination.limit,
         )
 
     async def _search_normal(
@@ -510,6 +510,35 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         return await super().update(
             item_id=item_id, data=data_dict, auto_refresh=True, auto_commit=True
         )
+
+    def send_property_price_update(fcm_token: str, property_data: dict):
+        """
+        Send a notification about a property price change
+        :param fcm_token: User's FCM token
+        :param property_data: Dict with keys like title, price, image_url, etc.
+        """
+
+        title = f"Price Update: {property_data['title']}"
+        body = f"The price has changed to ${property_data['new_price']:,}"
+
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title=title,
+                body=body,
+                image=property_data.get(
+                    "image_url"
+                ),
+            ),
+            data={
+                "property_id": str(property_data["id"]),
+                "title": property_data["title"],
+                "new_price": str(property_data["new_price"]),
+                "image_url": property_data.get("image_url", ""),
+            },
+            token=fcm_token,
+        )
+        response = messaging.send(message)
+        print("Notification sent:", response)
 
     async def update_activation(
         self, user_id: uuid.UUID, property_id: uuid.UUID, activate: bool | None

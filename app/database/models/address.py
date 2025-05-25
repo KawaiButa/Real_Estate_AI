@@ -12,7 +12,7 @@ from litestar.dto import dto_field
 from database.models.base import (
     BaseModel,
     BaseSchema,
-)  # Adjust the import per your project setup
+)
 
 
 @dataclass
