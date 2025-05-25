@@ -153,7 +153,7 @@ class Property(BaseModel):
         if self.reviews:
             for review in self.reviews:
                 review_string.append(
-                    f"Reviewer: {getattr(review.reviewer, "name", "N/A")} - {getattr(review, "review_text", "N/A")}"
+                    f"Reviewer: {getattr(review.reviewer, 'name', 'N/A')} - {getattr(review, 'review_text', 'N/A')}"
                 )
         lines.append(f"Review: {'.'.join(review_string)}")
         return "\n".join(lines)
