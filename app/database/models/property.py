@@ -136,7 +136,7 @@ class Property(BaseModel):
         if self.address:
             address = self.address
             lines.append(
-                f"Địa chỉ: {getattr(address, 'full_address', 'N/A')}, Kinh độ: {getattr(address, "latitude", "N/A")}, Vĩ độ: {getattr(address, "longitude", "N/A")}"
+                f"Địa chỉ: {getattr(address, 'full_address', 'N/A')}, Kinh độ: {getattr(address, 'latitude', 'N/A')}, Vĩ độ: {getattr(address, 'longitude', 'N/A')}"
             )
 
         # Owner details
