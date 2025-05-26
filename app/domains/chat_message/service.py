@@ -114,7 +114,7 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
         if "Compare" in hashtags:
             if len(uuid_list) <= 1:
                 raise ValidationException("Not enough property to compare")
-            properties = await property_service.list(Property.id in uuid_list)
+            properties = await property_service.list(Property.id.in_(uuid_list))
             if len(properties) < 2:
                 raise ValidationException("Not enough valid property to compare")
             return self.compare_properties_with_gemini(properties, data.content)
