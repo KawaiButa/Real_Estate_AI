@@ -1,7 +1,9 @@
 from typing import Annotated, Any
+import uuid
 from litestar import Controller, Request, Response, get, post
 from litestar.di import Provide
 from litestar.background_tasks import BackgroundTask, BackgroundTasks
+from domains.chat_session.controller import provide_limit_offset_pagination
 from database.models.chat_message import ChatMessage
 from database.models.user import User
 from domains.chat_message.dtos import AskAIDTO, CreateMessageDTO
@@ -14,13 +16,19 @@ from litestar.params import Body
 from litestar.enums import RequestEncodingType
 from litestar.security.jwt import Token
 from litestar.status_codes import HTTP_200_OK
+from litestar.repository.filters import LimitOffset
+
+from litestar.pagination import OffsetPagination
 
 
 class ChatMessageController(Controller):
     path = "chat_message"
     tags = ["Chat"]
 
-    dependencies = {"chat_service": Provide(provide_chat_message_service)}
+    dependencies = {
+        "chat_service": Provide(provide_chat_message_service),
+        "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=True),
+    }
 
     def notify_message(user: User, message: ChatMessage) -> None:
         if not user.device_token:
@@ -70,3 +78,15 @@ class ChatMessageController(Controller):
         chat_service: ChatMessageService,
     ) -> str:
         return await chat_service.ask_ai(data)
+
+    @get("/user/{user_id:uuid}")
+    async def get_chat_by_user_id(
+        self,
+        user_id: uuid.UUID,
+        limit_offset: LimitOffset,
+        request: Request[User, Token, Any],
+        chat_service: ChatMessageService,
+    ) -> OffsetPagination[ChatMessage]:
+        return await chat_service.chat_messages_by_user_id(
+            user_id, request.user.id, limit_offset
+        )

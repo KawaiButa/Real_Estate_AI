@@ -14,6 +14,7 @@ from database.models.user import UserSchema
 from database.models.base import BaseModel, BaseSchema
 from sqlalchemy import event
 
+
 @dataclass
 class ChatMessage(BaseModel):
     __tablename__ = "chat_messages"
@@ -39,7 +40,9 @@ class ChatMessage(BaseModel):
         PG_UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE")
     )
 
-    session: Mapped["ChatSession"] = relationship("ChatSession", back_populates="message")
+    session: Mapped["ChatSession"] = relationship(
+        "ChatSession", back_populates="message", lazy="noload"
+    )
 
 
 class ChatMessageSchema(BaseSchema):

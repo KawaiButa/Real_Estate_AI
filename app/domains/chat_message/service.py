@@ -2,6 +2,11 @@ from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import List
 import uuid
+
+from sqlalchemy import and_, desc, or_, select
+from sqlalchemy.orm import joinedload
+
+
 from database.models.property import Property
 from domains.properties.service import PropertyService
 from domains.chat_session.service import ChatSessionService
@@ -19,6 +24,8 @@ import re
 from litestar.exceptions import ValidationException
 import requests
 from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
+from litestar.repository.filters import LimitOffset
+from litestar.pagination import OffsetPagination
 
 
 class ChatMessageRepository(SQLAlchemyAsyncRepository[ChatMessage]):
@@ -65,6 +72,38 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
             return message
         finally:
             self.repository.session.commit()
+
+    async def chat_messages_by_user_id(
+        self, user_1_id: uuid.UUID, user_2_id: uuid.UUID, limit_offset: LimitOffset
+    ):
+        query = select(ChatMessage)
+        query = query.join(ChatMessage.session)
+        query = query.where(
+            or_(
+                and_(
+                    ChatSession.user_1_id == user_1_id,
+                    ChatSession.user_2_id == user_2_id,
+                ),
+                and_(
+                    ChatSession.user_1_id == user_2_id,
+                    ChatSession.user_2_id == user_1_id,
+                ),
+            )
+        )
+        paginated = (
+            query.order_by(desc(ChatSession.created_at))
+            .offset(limit_offset.offset)
+            .limit(limit_offset.limit)
+        )
+        result = await self.repository.session.execute(paginated)
+        items = result.scalars().unique().all()
+        total = await self.count()
+        return OffsetPagination(
+            items=items,
+            total=total,
+            limit=limit_offset.limit,
+            offset=limit_offset.offset,
+        )
 
     def extract_hashtags(self, text: str) -> List[str]:
         """

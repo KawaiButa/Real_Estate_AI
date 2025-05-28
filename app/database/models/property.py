@@ -12,6 +12,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from database.models.tourview import Tourview
 from database.models.review import Review, ReviewSchema
 from database.models.property_type import PropertyType, PropertyTypeSchema
 from database.models.base import BaseModel, BaseSchema
@@ -107,6 +108,12 @@ class Property(BaseModel):
         "User", back_populates="properties", lazy="joined"
     )
     reviews: Mapped[list["Review"]] = relationship("Review", lazy="noload")
+    tourviews: Mapped[list["Tourview"]] = relationship(
+        "Tourview",
+        lazy="selectin",
+        uselist=False,
+        back_populates="property",
+    )
     address: Mapped["Address"] = relationship("Address", uselist=False, lazy="selectin")
     tags: Mapped[list[Tag]] = relationship(
         "Tag", secondary=PropertyTag.__table__, lazy="selectin"

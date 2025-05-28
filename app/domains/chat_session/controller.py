@@ -1,7 +1,9 @@
 from typing import Any
+import uuid
 from litestar import Controller, Request, get
 from litestar.di import Provide
 from litestar.security.jwt import Token
+from sqlalchemy import and_, or_
 from database.models.chat_session import ChatSession
 from database.models.user import User
 from litestar.pagination import OffsetPagination
@@ -22,7 +24,7 @@ def provide_limit_offset_pagination(
     ),
     page: int | None = Parameter(
         query="page",
-        default=0,
+        default=1,
         ge=1,
         required=False,
     ),

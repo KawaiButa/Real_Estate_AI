@@ -44,7 +44,7 @@ class ChatSession(BaseModel):
     user_2: Mapped["User"] = relationship("User", foreign_keys=[user_2_id], lazy="joined")
 
     message: Mapped[list["ChatMessage"]] = relationship(
-        "ChatMessage", back_populates="session", lazy="joined"
+        "ChatMessage", back_populates="session", lazy="noload"
     )
 
 
