@@ -59,6 +59,7 @@ class ChatSession(BaseModel):
         "ChatMessage",
         primaryjoin=(last_message_id == ChatMessage.id),
         uselist=False,
+        lazy="selectin"
     )
 
     messages = relationship(
