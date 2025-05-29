@@ -43,7 +43,7 @@ class ChatMessage(BaseModel):
     )
 
     sender: Mapped["User"] = relationship("User", lazy="joined")
-
+    session: Mapped["ChatSession"] = relationship("ChatSession", lazy="noload", foreign_keys=[session_id])
 
 class ChatMessageSchema(BaseSchema):
     id: uuid.UUID

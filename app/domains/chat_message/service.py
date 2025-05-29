@@ -4,7 +4,7 @@ from typing import List
 import uuid
 
 from sqlalchemy import and_, desc, or_, select
-
+from sqlalchemy.orm import noload
 
 from database.models.property import Property
 from domains.properties.service import PropertyService
@@ -116,7 +116,29 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
         result = await self.repository.session.execute(paginated)
         items = result.scalars().unique().all()
         total = await self.count()
-        print(items)
+        return OffsetPagination(
+            items=list(items),
+            total=total,
+            limit=limit_offset.limit,
+            offset=limit_offset.offset,
+        )
+
+    async def chat_messages_by_session_id(
+        self, session_id: uuid.UUID, limit_offset: LimitOffset
+    ) -> OffsetPagination[ChatMessage]:
+        query = select(ChatMessage).options(
+            noload(ChatMessage.sender)
+        )
+        query = query.join(ChatMessage.session)
+        query = query.where(ChatSession.id == session_id)
+        paginated = (
+            query.order_by(desc(ChatSession.created_at))
+            .offset(limit_offset.offset)
+            .limit(limit_offset.limit)
+        )
+        result = await self.repository.session.execute(paginated)
+        items = result.scalars().unique().all()
+        total = await self.count()
         return OffsetPagination(
             items=list(items),
             total=total,

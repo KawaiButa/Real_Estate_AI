@@ -13,7 +13,7 @@ from domains.chat_session.service import (
     provide_chat_session_service,
 )
 from litestar.params import Parameter
-
+from litestar.exceptions import NotFoundException
 
 def provide_limit_offset_pagination(
     page_size: int | None = Parameter(
@@ -59,3 +59,9 @@ class ChatSessionController(Controller):
             offset=limit_offset.offset,
             total=count,
         )
+    @get("/{chat_session_id:uuid}")
+    async def get_chat_session(self, chat_session_id: uuid.UUID, chat_session_service: ChatSessionService) -> ChatSession:
+        chat_session = await chat_session_service.get_one_or_none(ChatSession.id == chat_session_id)
+        if not chat_session:
+            raise NotFoundException(f"No chat session found with id: {chat_session_id}")
+        return chat_session

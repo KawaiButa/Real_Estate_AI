@@ -102,3 +102,14 @@ class ChatMessageController(Controller):
         return await chat_service.chat_messages_by_user_id(
             user_id, request.user.id, limit_offset
         )
+
+    @get("/chat_session/{chat_session_id: uuid}")
+    async def get_chat_by_session_id(
+        self,
+        chat_session_id: uuid.UUID,
+        limit_offset: LimitOffset,
+        chat_service: ChatMessageService,
+    ) -> Any:
+        return await chat_service.chat_messages_by_session_id(
+            chat_session_id, limit_offset
+        )
