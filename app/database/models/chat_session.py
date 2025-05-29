@@ -1,11 +1,12 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import uuid
 from sqlalchemy import (
     DateTime,
     ForeignKey,
+    ForeignKeyConstraint,
     String,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -15,14 +16,21 @@ from database.models.base import (
 )
 from litestar.dto import dto_field
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
+from database.models.chat_message import ChatMessage, ChatMessageSchema
+
 if TYPE_CHECKING:
-    from database.models.chat_message import ChatMessage, ChatMessageSchema
     from database.models.user import User, UserSchema
+
 
 @dataclass
 class ChatSession(BaseModel):
     __tablename__ = "chat_sessions"
-
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["last_message_id"],
+            ["chat_messages.id"],
+        ),
+    )
     id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
@@ -35,22 +43,32 @@ class ChatSession(BaseModel):
         PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
     )
 
-    last_message: Mapped[String | None] = mapped_column(String())
-    last_message_time: Mapped[datetime.datetime | None] = mapped_column(
-        DateTime(timezone=True), info=dto_field("read-only")
+    last_message_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True),
+        ForeignKey("chat_messages.id", ondelete="SEt NULL"),
+        nullable=True,
+    )
+    user_1: Mapped["User"] = relationship(
+        "User", foreign_keys=[user_1_id], lazy="joined"
+    )
+    user_2: Mapped["User"] = relationship(
+        "User", foreign_keys=[user_2_id], lazy="joined"
     )
 
-    user_1: Mapped["User"] = relationship("User", foreign_keys=[user_1_id], lazy="joined")
-    user_2: Mapped["User"] = relationship("User", foreign_keys=[user_2_id], lazy="joined")
-
-    message: Mapped[list["ChatMessage"]] = relationship(
-        "ChatMessage", back_populates="session", lazy="noload"
+    last_message = relationship(
+        "ChatMessage",
+        primaryjoin=(last_message_id == ChatMessage.id),
+        uselist=False,
     )
 
+    messages = relationship(
+        "ChatMessage",
+        primaryjoin=(id == ChatMessage.session_id),
+        order_by=ChatMessage.created_at,
+    )
 
 class ChatSessionSchema(BaseSchema):
     user_1: UserSchema
     user_2: UserSchema
-    last_message: str
-    last_message_time: datetime.datetime
+    last_message: Optional[ChatMessageSchema]
     message: Mapped[list[ChatMessageSchema]]

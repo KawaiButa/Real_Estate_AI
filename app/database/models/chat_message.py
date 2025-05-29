@@ -1,20 +1,19 @@
 from __future__ import annotations
 from dataclasses import dataclass
 import uuid
-import datetime
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import ForeignKey, String, DateTime, Text
+from sqlalchemy import ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, foreign
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
-from database.models.chat_session import ChatSession
 from database.models.image import Image
-from database.models.user import UserSchema
+from database.models.user import User, UserSchema
 from database.models.base import BaseModel, BaseSchema
-from sqlalchemy import event
 
-
+if TYPE_CHECKING:
+    from database.models.chat_session import ChatSession
+    
 @dataclass
 class ChatMessage(BaseModel):
     __tablename__ = "chat_messages"
@@ -36,13 +35,14 @@ class ChatMessage(BaseModel):
         backref="chat_message",
         lazy="selectin",
     )
+    sender_id: Mapped[uuid.UUID] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
+    )
     session_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE")
     )
 
-    session: Mapped["ChatSession"] = relationship(
-        "ChatSession", back_populates="message", lazy="noload"
-    )
+    sender: Mapped["User"] = relationship("User", lazy="joined")
 
 
 class ChatMessageSchema(BaseSchema):
@@ -50,3 +50,4 @@ class ChatMessageSchema(BaseSchema):
     session_id: uuid.UUID
     content: Optional[str]
     image_url: Optional[str]
+    sender: Optional[UserSchema]

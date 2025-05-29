@@ -56,30 +56,42 @@ class AuthService(SQLAlchemyAsyncRepositoryService[User]):
         )
 
     async def login(self, userData: DTOData[User]) -> LoginReturnSchema:
-        data = userData.create_instance()
-        user = await self.get_one_or_none(
-            User.email.__eq__(data.email),
-        )
-        if not user or not bcrypt.verify(data.password, user.password):
-            raise ValidationException("Invalid credentials")
-        return LoginReturnSchema(
-            token=oauth2_auth.create_token(
-                identifier=str(
-                    {
-                        "id": str(user.id),
-                        "name": user.name,
-                        "roles": [
-                            {
-                                "id": str(user.id),
-                                "name": role.name,
-                            }
-                            for role in user.roles
-                        ],
-                    }
+        try:
+            data = userData.create_instance()
+            user = await self.get_one_or_none(
+                User.email.__eq__(data.email),
+            )
+
+            if not user or not bcrypt.verify(data.password, user.password):
+                raise ValidationException("Invalid credentials")
+            if data.device_token:
+                user = await self.update(data={
+                    "device_token": data.device_token,
+                    
+                }, item_id=user.id)
+            return LoginReturnSchema(
+                token=oauth2_auth.create_token(
+                    identifier=str(
+                        {
+                            "id": str(user.id),
+                            "name": user.name,
+                            "roles": [
+                                {
+                                    "id": str(user.id),
+                                    "name": role.name,
+                                }
+                                for role in user.roles
+                            ],
+                        }
+                    ),
                 ),
-            ),
-            user=self.to_schema(data=user, schema_type=UserSchema),
-        )
+                user=self.to_schema(data=user, schema_type=UserSchema),
+            )
+        except Exception as e:
+            print(e)
+            self.repository.session.rollback()
+        finally:
+            self.repository.session.commit()
 
     async def update_role(
         self,
@@ -142,6 +154,7 @@ class AuthService(SQLAlchemyAsyncRepositoryService[User]):
         user.reset_password_token = None
         user = await self.update(user, auto_commit=True, auto_refresh=True)
         return user
+
 
 async def provide_auth_service(
     db_session: AsyncSession,

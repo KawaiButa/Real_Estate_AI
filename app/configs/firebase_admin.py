@@ -1,7 +1,7 @@
 import json
 import os
 import firebase_admin
-from firebase_admin import credentials, messaging
+from firebase_admin import credentials, firestore
 
 firebase_credentials = os.environ.get("FIREBASE_CREDENTIALS")
 
@@ -18,3 +18,4 @@ else:
         raise ValueError("FIREBASE_CREDENTIALS is not a valid path or JSON.") from e
 
 firebase_admin.initialize_app(cred)
+db = firestore.client()

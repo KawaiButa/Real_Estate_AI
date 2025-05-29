@@ -67,7 +67,11 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
                     )
                 data.session_id = chat_session.id
             message = await self.create(
-                {"content": data.content, "session_id": data.session_id}
+                {
+                    "content": data.content,
+                    "session_id": data.session_id,
+                    "sender_id": user_id,
+                }
             )
             if data.image_list:
                 await image_service.create_many(

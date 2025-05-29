@@ -6,6 +6,7 @@ from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.models.chat_message import ChatMessage
 from database.models.chat_session import ChatSession
+from configs.firebase_admin import db
 
 
 class ChatSessionRepository(SQLAlchemyAsyncRepository[ChatSession]):
@@ -25,6 +26,19 @@ class ChatSessionService(SQLAlchemyAsyncRepositoryService[ChatSession]):
             auto_refresh=True,
         )
 
+    def update_last_message_on_firebase(self, chat_session: ChatSession) -> None:
+        doc_ref = db.collection("chat_sessions").document(
+            f"{chat_session.user_1_id}_{chat_session.user_2_id}"
+        )
+        doc_ref.set(
+            {
+                "sender_id": chat_session.last_message.id,
+                "last_message": chat_session.last_message.content,
+                "last_message_time": chat_session.last_message.created_at,
+            },
+            merge=True,
+        )
+
     async def update_last_message(self, session_id: UUID, target: ChatMessage):
         try:
             chat_session = await self.update(
@@ -34,6 +48,7 @@ class ChatSessionService(SQLAlchemyAsyncRepositoryService[ChatSession]):
                 },
                 item_id=session_id,
             )
+            self.update_last_message_on_firebase(chat_session)
             return chat_session
         except Exception as e:
             print(e)

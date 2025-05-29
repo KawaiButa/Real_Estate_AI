@@ -89,16 +89,6 @@ def schema_downgrades() -> None:
         batch_op.drop_constraint(batch_op.f('fk_property_verifications_property_id_properties'), type_='foreignkey')
         batch_op.create_foreign_key('fk_property_verifications_property_id_properties', 'properties', ['property_id'], ['id'], ondelete='CASCADE')
         batch_op.create_foreign_key('fk_property_verifications_user_id_users', 'users', ['user_id'], ['id'], ondelete='CASCADE')
-
-    op.create_table('spatial_ref_sys',
-    sa.Column('srid', sa.INTEGER(), autoincrement=False, nullable=False),
-    sa.Column('auth_name', sa.VARCHAR(length=256), autoincrement=False, nullable=True),
-    sa.Column('auth_srid', sa.INTEGER(), autoincrement=False, nullable=True),
-    sa.Column('srtext', sa.VARCHAR(length=2048), autoincrement=False, nullable=True),
-    sa.Column('proj4text', sa.VARCHAR(length=2048), autoincrement=False, nullable=True),
-    sa.CheckConstraint('srid > 0 AND srid <= 998999', name='spatial_ref_sys_srid_check'),
-    sa.PrimaryKeyConstraint('srid', name='spatial_ref_sys_pkey')
-    )
     op.drop_table('chat_messages')
     op.drop_table('chat_sessions')
     # ### end Alembic commands ###

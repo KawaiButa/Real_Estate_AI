@@ -8,7 +8,7 @@ from domains.chat_session.service import (
     provide_chat_session_service,
 )
 from domains.chat_session.controller import provide_limit_offset_pagination
-from database.models.chat_message import ChatMessage
+from database.models.chat_message import ChatMessage, ChatMessageSchema
 from database.models.user import User
 from domains.chat_message.dtos import AskAIDTO, CreateMessageDTO
 from domains.chat_message.service import (
@@ -35,7 +35,7 @@ class ChatMessageController(Controller):
         "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=True),
     }
 
-    def notify_message(self,user: User, message: ChatMessage) -> None:
+    def notify_message(self, user: User, message: ChatMessage) -> None:
         if not user.device_token:
             return
         notify_service = NotificationService()
@@ -47,9 +47,10 @@ class ChatMessageController(Controller):
             body=body,
             data={
                 "type": "chat",
+                "content": message.content,
                 "sender_id": str(message.sender_id),
-                "receiver_id": str(message.receiver_id),
                 "chat_session_id": str(message.session_id),
+                "created_at": message.created_at.timestamp(),
             },
         )
 
@@ -65,7 +66,7 @@ class ChatMessageController(Controller):
     ) -> Response:
         message, data = await chat_service.create_message(data, request.user.id)
         return Response(
-            {"message_id": message.id},
+            chat_service.to_schema(message, schema_type=ChatMessageSchema),
             background=BackgroundTasks(
                 [
                     BackgroundTask(
