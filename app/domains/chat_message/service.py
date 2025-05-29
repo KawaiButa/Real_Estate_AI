@@ -2,14 +2,14 @@ from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import List
 import uuid
-
+from sqlalchemy.dialects import postgresql  # or mysql, sqlite depending on your DB
 from sqlalchemy import and_, desc, or_, select
 from sqlalchemy.orm import noload
 
 from database.models.property import Property
 from domains.properties.service import PropertyService
 from domains.chat_session.service import ChatSessionService
-from database.models.chat_message import ChatMessage
+from database.models.chat_message import ChatMessage, ChatMessageSchema
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from database.models.chat_session import ChatSession
@@ -114,14 +114,15 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
             .limit(limit_offset.limit)
         )
         result = await self.repository.session.execute(paginated)
-        items = result.scalars().unique().all()
+        items = result.scalars().all()
         total = await self.count()
         return OffsetPagination(
-            items=list(items),
+            items=self.to_schema(data=items, schema_type=ChatMessageSchema).items,
             total=total,
             limit=limit_offset.limit,
             offset=limit_offset.offset,
         )
+
 
     async def chat_messages_by_session_id(
         self, session_id: uuid.UUID, limit_offset: LimitOffset
@@ -129,18 +130,18 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
         query = select(ChatMessage).options(
             noload(ChatMessage.sender)
         )
-        query = query.join(ChatMessage.session)
-        query = query.where(ChatSession.id == session_id)
+        query = query.where(ChatMessage.session_id == session_id)
         paginated = (
-            query.order_by(desc(ChatSession.created_at))
+            query.order_by(desc(ChatMessage.created_at))
             .offset(limit_offset.offset)
             .limit(limit_offset.limit)
         )
+        print(paginated.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
         result = await self.repository.session.execute(paginated)
-        items = result.scalars().unique().all()
+        items = result.scalars().all()
         total = await self.count()
         return OffsetPagination(
-            items=list(items),
+            items=self.to_schema(data=items, schema_type=ChatMessageSchema).items,
             total=total,
             limit=limit_offset.limit,
             offset=limit_offset.offset,

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 import uuid
@@ -34,7 +35,7 @@ class UserTag(BaseModel):
         PG_UUID(as_uuid=True), ForeignKey("tags.id"), primary_key=False
     )
 
-
+@dataclass
 class User(BaseModel):
     __tablename__ = "users"
     name: Mapped[str] = mapped_column(String(255), unique=False, nullable=False)

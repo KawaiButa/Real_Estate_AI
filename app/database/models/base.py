@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from litestar.dto import dto_field
 from pydantic import BaseModel as _BaseModel, ConfigDict
 import uuid
+
 class BaseModel(base.DefaultBase):
     __abstract__ = True
     id: Mapped[PG_UUID] = mapped_column(
