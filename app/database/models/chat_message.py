@@ -47,6 +47,7 @@ class ChatMessage(BaseModel):
 class ChatMessageSchema(BaseSchema):
     id: uuid.UUID
     session_id: uuid.UUID
+    sender_id: uuid.UUID
     content: Optional[str]
     images: list[ImageSchema]
     sender: Optional[UserSchema]
