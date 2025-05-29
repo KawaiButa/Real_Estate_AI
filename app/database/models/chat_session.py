@@ -65,6 +65,7 @@ class ChatSession(BaseModel):
         "ChatMessage",
         primaryjoin=(id == ChatMessage.session_id),
         order_by=ChatMessage.created_at,
+        lazy="noload"
     )
 
 class ChatSessionSchema(BaseSchema):
