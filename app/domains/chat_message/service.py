@@ -4,7 +4,6 @@ from typing import List
 import uuid
 
 from sqlalchemy import and_, desc, or_, select
-from sqlalchemy.orm import joinedload
 
 
 from database.models.property import Property
@@ -43,16 +42,29 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
                 chat_session_service = ChatSessionService(
                     session=self.repository.session
                 )
-                user_1_id = min(user_id, data.user_id)
-                user_2_id = max(user_id, data.user_id)
-                chat_session = await chat_session_service.create(
-                    {
-                        "user_1_id": user_1_id,
-                        "user_2_id": user_2_id,
-                        "last_message": data.content if data.content else "Image",
-                        "last_message_time": datetime.now(),
-                    }
+                chat_session = await chat_session_service.get_one_or_none(
+                    or_(
+                        and_(
+                            ChatSession.user_1_id == data.user_id,
+                            ChatSession.user_2_id == user_id,
+                        ),
+                        and_(
+                            ChatSession.user_1_id == user_id,
+                            ChatSession.user_2_id == data.user_id,
+                        ),
+                    )
                 )
+                if not chat_session:
+                    user_1_id = min(str(user_id), str(data.user_id))
+                    user_2_id = max(str(user_id), str(data.user_id))
+                    chat_session = await chat_session_service.create(
+                        {
+                            "user_1_id": user_1_id,
+                            "user_2_id": user_2_id,
+                            "last_message": data.content if data.content else "Image",
+                            "last_message_time": datetime.now(),
+                        }
+                    )
                 data.session_id = chat_session.id
             message = await self.create(
                 {"content": data.content, "session_id": data.session_id}
@@ -68,14 +80,16 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
                         for image in data.image_list
                     ]
                 )
-            await self.update_last_message(self.repository.session, message)
-            return message
+            return message, data
+        except Exception as e:
+            print(e)
+            await self.repository.session.rollback()
         finally:
-            self.repository.session.commit()
+            await self.repository.session.commit()
 
     async def chat_messages_by_user_id(
         self, user_1_id: uuid.UUID, user_2_id: uuid.UUID, limit_offset: LimitOffset
-    ):
+    ) -> OffsetPagination[ChatMessage]:
         query = select(ChatMessage)
         query = query.join(ChatMessage.session)
         query = query.where(
@@ -98,8 +112,9 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
         result = await self.repository.session.execute(paginated)
         items = result.scalars().unique().all()
         total = await self.count()
+        print(items)
         return OffsetPagination(
-            items=items,
+            items=list(items),
             total=total,
             limit=limit_offset.limit,
             offset=limit_offset.offset,
@@ -157,11 +172,6 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
             if len(properties) < 2:
                 raise ValidationException("Not enough valid property to compare")
             return self.compare_properties_with_gemini(properties, data.content)
-
-    async def update_last_message(session, target: ChatMessage):
-        await session.query(ChatSession).filter_by(id=target.session_id).update(
-            {"last_message": target.content, "last_message_time": target.created_at}
-        )
 
     def compare_properties_with_gemini(
         self, properties: List[Property], question: str

@@ -3,6 +3,10 @@ import uuid
 from litestar import Controller, Request, Response, get, post
 from litestar.di import Provide
 from litestar.background_tasks import BackgroundTask, BackgroundTasks
+from domains.chat_session.service import (
+    ChatSessionService,
+    provide_chat_session_service,
+)
 from domains.chat_session.controller import provide_limit_offset_pagination
 from database.models.chat_message import ChatMessage
 from database.models.user import User
@@ -27,10 +31,11 @@ class ChatMessageController(Controller):
 
     dependencies = {
         "chat_service": Provide(provide_chat_message_service),
+        "chat_session_service": Provide(provide_chat_session_service),
         "limit_offset": Provide(provide_limit_offset_pagination, sync_to_thread=True),
     }
 
-    def notify_message(user: User, message: ChatMessage) -> None:
+    def notify_message(self,user: User, message: ChatMessage) -> None:
         if not user.device_token:
             return
         notify_service = NotificationService()
@@ -56,17 +61,23 @@ class ChatMessageController(Controller):
         ],
         request: Request[User, Token, Any],
         chat_service: ChatMessageService,
+        chat_session_service: ChatSessionService,
     ) -> Response:
-        message = await chat_service.create_message(data, request.user.id)
+        message, data = await chat_service.create_message(data, request.user.id)
         return Response(
             {"message_id": message.id},
             background=BackgroundTasks(
                 [
                     BackgroundTask(
                         self.notify_message,
-                        user=request.user,
-                        message=message,
-                    )
+                        request.user,
+                        message,
+                    ),
+                    BackgroundTask(
+                        chat_session_service.update_last_message,
+                        data.session_id,
+                        message,
+                    ),
                 ]
             ),
         )
@@ -86,7 +97,7 @@ class ChatMessageController(Controller):
         limit_offset: LimitOffset,
         request: Request[User, Token, Any],
         chat_service: ChatMessageService,
-    ) -> OffsetPagination[ChatMessage]:
+    ) -> Any:
         return await chat_service.chat_messages_by_user_id(
             user_id, request.user.id, limit_offset
         )

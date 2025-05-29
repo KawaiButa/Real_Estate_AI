@@ -29,7 +29,7 @@ def provide_limit_offset_pagination(
         required=False,
     ),
 ) -> LimitOffset:
-    return LimitOffset(page_size, page * page_size)
+    return LimitOffset(page_size, (page - 1) * page_size)
 
 
 class ChatSessionController(Controller):

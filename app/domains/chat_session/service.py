@@ -1,8 +1,10 @@
 from collections.abc import AsyncGenerator
+from datetime import datetime
 from uuid import UUID
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy.ext.asyncio import AsyncSession
+from database.models.chat_message import ChatMessage
 from database.models.chat_session import ChatSession
 
 
@@ -22,6 +24,22 @@ class ChatSessionService(SQLAlchemyAsyncRepositoryService[ChatSession]):
             auto_commit=True,
             auto_refresh=True,
         )
+
+    async def update_last_message(self, session_id: UUID, target: ChatMessage):
+        try:
+            chat_session = await self.update(
+                data={
+                    "last_message": target.content,
+                    "last_message_time": datetime.now(),
+                },
+                item_id=session_id,
+            )
+            return chat_session
+        except Exception as e:
+            print(e)
+            await self.repository.session.rollback()
+        finally:
+            await self.repository.session.commit()
 
 
 async def provide_chat_session_service(
