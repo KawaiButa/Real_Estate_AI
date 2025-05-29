@@ -88,10 +88,10 @@ class AuthService(SQLAlchemyAsyncRepositoryService[User]):
                 user=self.to_schema(data=user, schema_type=UserSchema),
             )
         except Exception as e:
-            print(e)
-            self.repository.session.rollback()
+            await self.repository.session.rollback()
+            raise e
         finally:
-            self.repository.session.commit()
+            await self.repository.session.commit()
 
     async def update_role(
         self,
