@@ -7,7 +7,7 @@ from sqlalchemy import ForeignKey, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, foreign
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 
-from database.models.image import Image
+from database.models.image import Image, ImageSchema
 from database.models.user import User, UserSchema
 from database.models.base import BaseModel, BaseSchema
 
@@ -49,5 +49,5 @@ class ChatMessageSchema(BaseSchema):
     id: uuid.UUID
     session_id: uuid.UUID
     content: Optional[str]
-    image_url: Optional[str]
+    images: list[ImageSchema]
     sender: Optional[UserSchema]

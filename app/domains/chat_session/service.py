@@ -48,9 +48,10 @@ class ChatSessionService(SQLAlchemyAsyncRepositoryService[ChatSession]):
                 },
                 item_id=session_id,
             )
-            self.update_last_message_on_firebase(chat_session)
+            # self.update_last_message_on_firebase(chat_session)
             return chat_session
         except Exception as e:
+            print(f"Error when update last message")
             print(e)
             await self.repository.session.rollback()
         finally:
