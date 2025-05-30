@@ -31,16 +31,18 @@ class ReviewResponseDTO(BaseModel):
 
 @dataclass
 class ReviewFilterDTO:
-    min_rating: int | None = Field(None, ge=1, le=5)
-    has_media: bool = False
-    sort_by: str = Field("recent", pattern="^(recent|helpful|rating)$")
+    min_rating: Optional[int] = Field(None, ge=1, le=5)
+    has_media: Optional[bool] = False
+    user_id: Optional[bool] = None
+    sort_by: Optional[str] = Field("recent", pattern="^(recent|helpful|rating)$")
 
 
 def provide_filter_param(
     min_rating: Optional[float] = Parameter(
-        ge=0.0, le=5.0, default=0.0, query="minRating"
+        ge=0.0, le=5.0, default=0.0, query="min_rating"
     ),
-    has_media: Optional[bool] = Parameter(default=None, query="hasMedia"),
-    sort_by: Optional[str] = Parameter(default="recent", query="sortBy"),
+    has_media: Optional[bool] = Parameter(default=None, query="has_media"),
+    user_id: Optional[UUID] = Parameter(default=None, query="user_id"),
+    sort_by: Optional[str] = Parameter(default="recent", query="sort_by"),
 ) -> ReviewFilterDTO:
-    return ReviewFilterDTO(min_rating, has_media, sort_by)
+    return ReviewFilterDTO(min_rating, has_media, user_id, sort_by)

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 from sqlalchemy import (
     ForeignKey,
     Integer,
@@ -9,12 +9,13 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship, Mapped, mapped_column, foreign
 import uuid
-from database.models.image import Image
+from database.models.image import Image, ImageSchema
 from database.models.base import BaseModel, BaseSchema
 
 if TYPE_CHECKING:
     from database.models.user import UserSchema
     from database.models.user import User
+
 
 class Review(BaseModel):
     __tablename__ = "reviews"
@@ -67,9 +68,11 @@ class ReviewResponseSchema(BaseSchema):
 class ReviewSchema(BaseSchema):
     property_id: uuid.UUID
     reviewer_id: uuid.UUID
-    reviewer: "UserSchema"
+    reviewer: Optional["UserSchema"]
     helpful_votes: list[HelpfulVoteSchema] = []
     responses: list[ReviewResponseSchema] = []
+    has_voted: Optional[bool] = None
+    images: list[ImageSchema]
 
 
 class ReviewMedia(BaseModel):

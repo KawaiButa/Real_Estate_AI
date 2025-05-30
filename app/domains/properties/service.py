@@ -10,11 +10,12 @@ from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 import numpy as np
 from pydantic import BaseModel, ValidationInfo, field_validator
 import requests
-from sqlalchemy import Enum, asc, desc, func, select
+from sqlalchemy import Enum, asc, desc, exists, func, select
 from litestar.params import Parameter
 from litestar.openapi.spec.example import Example
 from litestar.exceptions import ValidationException, NotAuthorizedException
 from sqlalchemy.orm import joinedload
+from database.models.review import Review
 from domains.user_action.service import UserActionRepository
 from domains.user_search.service import UserSearchService
 from database.models.property_type import PropertyType
@@ -92,6 +93,11 @@ class PropertySearchParams(BaseModel):
         None,
         title="Maximum Price",
         description="Maximum price in VND million",
+    )
+    has_review: Optional[bool] = Parameter(
+        False,
+        title="Toggle have review",
+        description="Toggle to search for property that have review",
     )
     property_category: Optional[str] = Parameter(
         None,
@@ -254,21 +260,28 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         # geo filter
         if search_param.lat is not None and search_param.lng is not None:
             query = query.join(Property.address)
-            point = func.ST_SetSRID(
-                func.ST_MakePoint(search_param.lng, search_param.lat), 4326
-            )
-            query = query.where(
-                func.ST_DWithin(
-                    Address.coordinates,
-                    point,
-                    search_param.radius * 1000,
-                )
-            )
+            radius_meters = search_param.radius * 1000
+            radius_degrees = radius_meters / 111320.0  
+            lat = search_param.lat
+            lng = search_param.lng
+            min_lat = lat - radius_degrees
+            max_lat = lat + radius_degrees
+            min_lng = lng - radius_degrees
+            max_lng = lng + radius_degrees
+            envelope = func.ST_MakeEnvelope(min_lng, min_lat, max_lng, max_lat, 4326)
+            query = query.where(func.ST_Contains(envelope, Address.coordinates))
         # price filters
         if search_param.min_price is not None:
             query = query.where(Property.price >= search_param.min_price)
         if search_param.max_price is not None:
             query = query.where(Property.price <= search_param.max_price)
+        # Have review
+        if search_param.has_review:
+            subquery = (
+                select(Review.id)
+                .where(Review.property_id == Property.id)
+            )
+            query = query.where(exists(subquery))
         # categorical
         if search_param.property_category:
             query = query.where(
@@ -525,9 +538,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             notification=messaging.Notification(
                 title=title,
                 body=body,
-                image=property_data.get(
-                    "image_url"
-                ),
+                image=property_data.get("image_url"),
             ),
             data={
                 "property_id": str(property_data["id"]),
@@ -635,6 +646,11 @@ async def query_params_extractor(
         title="Minimum Area (sqm)",
         gt=20,
     ),
+    has_review: Optional[bool] = Parameter(
+        False,
+        title="Toggle have review",
+        description="Toggle to search for property that have review",
+    ),
     status: Optional[str] = Parameter(
         None, description=f"Property status: {', '.join(VIETNAM_PROPERTY_STATUSES)}"
     ),
@@ -683,6 +699,7 @@ async def query_params_extractor(
         status=status,
         created_after=created_after,
         city=city,
+        has_review=has_review,
         district=district,
         direction_facing=direction_facing,
         order_by=order_by,

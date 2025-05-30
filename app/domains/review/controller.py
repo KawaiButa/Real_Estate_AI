@@ -58,7 +58,7 @@ class RatingController(Controller):
         pagination: LimitOffset,
         filters: ReviewFilterDTO,
         rating_service: RatingService,
-    ) -> OffsetPagination[Review]:
+    ) -> OffsetPagination[ReviewSchema]:
         return await rating_service.list_paginated(
             property_id=property_id, pagination=pagination, filters=filters
         )

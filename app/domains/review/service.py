@@ -3,14 +3,14 @@ from uuid import UUID
 from litestar.exceptions import NotAuthorizedException, ValidationException
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
-from sqlalchemy import select, func, and_, update
+from sqlalchemy import literal, select, func, and_, update
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.models.property import Property
 from domains.image.service import ImageService
 from domains.property_verification.service import VerificationService
 from database.models.property_verification import PropertyVerification
-from database.models.review import HelpfulVote, Review, ReviewResponse
+from database.models.review import HelpfulVote, Review, ReviewResponse, ReviewSchema
 from domains.properties.service import PropertyService
 from domains.review.dtos import ReviewCreateDTO, ReviewFilterDTO
 from litestar.pagination import OffsetPagination
@@ -95,11 +95,9 @@ class RatingService(SQLAlchemyAsyncRepositoryService[Review]):
         if not verification:
             raise NotAuthorizedException("Property verification required")
 
-        # Fraud detection checks
         await self._fraud_checks(user_id, property_id)
         data = data.model_dump()
         data["reviewer_id"] = user_id
-        # Create review
         review = await self.create(data=data, auto_refresh=True)
         image_services = ImageService(session=self.repository.session)
         images = await image_services.create_many(
@@ -140,23 +138,58 @@ class RatingService(SQLAlchemyAsyncRepositoryService[Review]):
         property_id: UUID,
         filters: ReviewFilterDTO,
         pagination: LimitOffset,
-    ) -> OffsetPagination[Review]:
+    ) -> OffsetPagination[ReviewSchema]:
         query_filters = [Review.property_id == property_id]
 
         if filters.min_rating:
             query_filters.append(Review.rating >= filters.min_rating)
         if filters.has_media:
-            query_filters.append(Review.media.any())
+            query_filters.append(Review.images.any())
 
         order_by = {
             "recent": Review.created_at.desc(),
             "helpful": Review.helpful_count.desc(),
             "rating": Review.rating.desc(),
         }[filters.sort_by]
-        items = await self.list_and_count(*query_filters, uniquify=True)
+        if filters.user_id:
+            vote_exists = (
+                select(literal(True))
+                .where(
+                    (HelpfulVote.review_id == Review.id)
+                    & (HelpfulVote.voter_id == filters.user_id)
+                )
+                .exists()
+            )
+
+            stmt = (
+                select(
+                    Review,
+                    vote_exists.label("has_voted"),
+                )
+                .where(*query_filters)
+                .order_by(order_by)
+                .offset(pagination.offset)
+                .limit(pagination.limit)
+            )
+
+            result = await self.repository.session.execute(stmt)
+            items = result.scalars().unique().all()
+        else:
+            stmt = (
+                select(Review)
+                .where(*query_filters)
+                .order_by(order_by)
+                .offset(pagination.offset)
+                .limit(pagination.limit)
+            )
+
+            result = await self.repository.session.execute(stmt)
+            items = result.scalars().unique().all()
+        count_stmt = select(func.count()).select_from(Review).where(*query_filters)
+        total = await self.repository.session.scalar(count_stmt)
         return OffsetPagination(
-            items=items[0],
-            total=items[1],
+            items=self.to_schema(items, schema_type=ReviewSchema).items,
+            total=total,
             limit=pagination.limit,
             offset=pagination.offset,
         )
