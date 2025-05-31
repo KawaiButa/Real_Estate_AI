@@ -68,9 +68,9 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
                 data.session_id = chat_session.id
             message = await self.create(
                 {
-                    "content": data.content,
+                    "content": data.content if data.content != None else "",
                     "session_id": data.session_id,
-                    "sender_id": user_id,
+                    "sender_id": uuid.UUID(user_id),
                 }
             )
             if data.image_list:
@@ -88,8 +88,9 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
         except Exception as e:
             print(e)
             await self.repository.session.rollback()
+            raise e
         finally:
-            await self.repository.session.commit()
+             await self.repository.session.commit()
 
     async def chat_messages_by_user_id(
         self, user_1_id: uuid.UUID, user_2_id: uuid.UUID, limit_offset: LimitOffset

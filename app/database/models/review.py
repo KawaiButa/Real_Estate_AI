@@ -69,6 +69,7 @@ class ReviewSchema(BaseSchema):
     property_id: uuid.UUID
     reviewer_id: uuid.UUID
     reviewer: Optional["UserSchema"]
+    rating: int
     helpful_votes: list[HelpfulVoteSchema] = []
     responses: list[ReviewResponseSchema] = []
     has_voted: Optional[bool] = None
