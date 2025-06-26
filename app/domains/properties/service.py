@@ -10,7 +10,7 @@ from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 import numpy as np
 from pydantic import BaseModel, ValidationInfo, field_validator
 import requests
-from sqlalchemy import Enum, asc, desc, exists, func, select
+from sqlalchemy import Enum, and_, asc, desc, exists, func, select
 from litestar.params import Parameter
 from litestar.openapi.spec.example import Example
 from litestar.exceptions import ValidationException, NotAuthorizedException
@@ -268,8 +268,12 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             max_lat = lat + radius_degrees
             min_lng = lng - radius_degrees
             max_lng = lng + radius_degrees
-            envelope = func.ST_MakeEnvelope(min_lng, min_lat, max_lng, max_lat, 4326)
-            query = query.where(func.ST_Contains(envelope, Address.coordinates))
+            query = query.where(and_(
+                Address.latitude >= min_lat,
+                Address.latitude <= max_lat,
+                Address.longitude >= min_lng,
+                Address.longitude <= max_lng,
+            ))
         # price filters
         if search_param.min_price is not None:
             query = query.where(Property.price >= search_param.min_price)
@@ -712,13 +716,14 @@ async def fetch_city_image(city_name: str) -> str:
     stored_data = await store.get(f"city_{city_name.replace(' ', '_')}")
     if stored_data:
         return str(stored_data)[2:-1]
-    url = "https://api.unsplash.com/search/photos"
+    url = "https://api.pexels.com/v1/search"
     params = {
         "query": city_name,
-        "client_id": os.getenv("UPSPLASH_ACCESS_TOKEN"),
-        "per_page": 1,
     }
-    response = requests.get(url, params=params)
+    headers = {
+        "Authorization": os.getenv("PEXELS_API_KEY"),
+    }
+    response = requests.get(url, params=params, headers=headers)
     data = response.json()
     if data.get("results"):
         result = data["results"][0]["urls"]["regular"]

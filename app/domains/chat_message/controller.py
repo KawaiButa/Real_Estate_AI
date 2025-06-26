@@ -64,19 +64,33 @@ class ChatMessageController(Controller):
         chat_service: ChatMessageService,
         chat_session_service: ChatSessionService,
     ) -> Response:
-        message, data = await chat_service.create_message(data, request.user.id)
+        if not data.is_ai:
+            message = await chat_service.create_message(data, request.user.id)
+            return Response(
+                chat_service.to_schema(message, schema_type=ChatMessageSchema),
+                background=BackgroundTasks(
+                    [
+                        BackgroundTask(
+                            self.notify_message,
+                            request.user,
+                            message,
+                        ),
+                        BackgroundTask(
+                            chat_session_service.update_last_message,
+                            message.session_id,
+                            message,
+                        ),
+                    ]
+                ),
+            )
+        message = await chat_service.ai_respond_to_user(data, request.user.id)
         return Response(
             chat_service.to_schema(message, schema_type=ChatMessageSchema),
             background=BackgroundTasks(
                 [
                     BackgroundTask(
-                        self.notify_message,
-                        request.user,
-                        message,
-                    ),
-                    BackgroundTask(
                         chat_session_service.update_last_message,
-                        data.session_id,
+                        message.session_id,
                         message,
                     ),
                 ]

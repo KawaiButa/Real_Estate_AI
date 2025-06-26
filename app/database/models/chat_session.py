@@ -36,7 +36,7 @@ class ChatSession(BaseModel):
     )
 
     user_1_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
 
     user_2_id: Mapped[uuid.UUID] = mapped_column(
@@ -48,7 +48,7 @@ class ChatSession(BaseModel):
         ForeignKey("chat_messages.id", ondelete="SEt NULL"),
         nullable=True,
     )
-    user_1: Mapped["User"] = relationship(
+    user_1: Mapped[Optional["User"]] = relationship(
         "User", foreign_keys=[user_1_id], lazy="joined"
     )
     user_2: Mapped["User"] = relationship(

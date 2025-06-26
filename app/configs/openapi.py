@@ -33,7 +33,7 @@ config = OpenAPIConfig(
     version=version,
     contact=Contact(
         name=os.getenv("OPENAPI_CONTACT_NAME", "Administrator"),
-        email=os.getenv("OPENAPI_CONTACT_EMAIL", "admin@localhost"),
+        email=os.getenv("OPENAPI_CONTACT_EMAIL", "nh151700@gmail.com"),
     ),
     use_handler_docstrings=True,
     path=os.getenv("OPENAPI_PATH", "/api"),

@@ -33,7 +33,7 @@ class Article(BaseModel):
         default=datetime.datetime.now,
     )
     content: Mapped[str] = mapped_column(String, nullable=False)
-    short_description: Mapped[str] = mapped_column(String(255), nullable=False)
+    short_description: Mapped[str] = mapped_column(String, nullable=False)
     author: Mapped[str] = mapped_column(String(255), nullable=False)
     tags: Mapped[list["Tag"]] = relationship(
         "Tag", secondary=ArticleTags.__table__, lazy="selectin"

@@ -1,6 +1,10 @@
 from collections.abc import AsyncGenerator
 from uuid import UUID
-from litestar.exceptions import NotAuthorizedException, ValidationException
+from litestar.exceptions import (
+    NotAuthorizedException,
+    ValidationException,
+    InternalServerException,
+)
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 from sqlalchemy import literal, select, func, and_, update
@@ -214,20 +218,44 @@ class RatingService(SQLAlchemyAsyncRepositoryService[Review]):
         )
 
     async def toggle_helpful_vote(self, rating_id: UUID, user_id: UUID) -> HelpfulVote:
-        helpful_vote_service = HelpfulVoteService(session=self.repository.session)
-        helpful_vote = await helpful_vote_service.get_one_or_none(
-            HelpfulVote.review_id == rating_id, HelpfulVote.voter_id == user_id
-        )
-        if helpful_vote:
-            return await helpful_vote_service.delete(helpful_vote.id)
-        return await helpful_vote_service.create(
-            {
-                "review_id": rating_id,
-                "voter_id": user_id,
-            },
-            auto_commit=True,
-            auto_refresh=True,
-        )
+        session = self.repository.session
+        try:
+            existing = await HelpfulVoteService(session).get_one_or_none(
+                HelpfulVote.review_id == rating_id,
+                HelpfulVote.voter_id == user_id,
+            )
+            if existing:
+                await HelpfulVoteService(session).delete(existing.id)
+                await session.execute(
+                    update(Review)
+                    .where(Review.id == rating_id)
+                    .values(helpful_vote_count=Review.helpful_vote_count - 1)
+                )
+                await session.commit()
+                return existing
+
+            vote = await HelpfulVoteService(session).create(
+                {
+                    "review_id": rating_id,
+                    "voter_id": user_id,
+                },
+                auto_commit=False,
+                auto_refresh=False,
+            )
+            await session.execute(
+                update(Review)
+                .where(Review.id == rating_id)
+                .values(helpful_vote_count=Review.helpful_vote_count + 1)
+            )
+            await session.commit()
+            await session.refresh(vote.review)
+            return vote
+        except Exception as e:
+            print(e)
+            session.rollback()
+            raise InternalServerException(
+                "Unknown server error. Please try again later"
+            )
 
 
 async def provide_review_service(

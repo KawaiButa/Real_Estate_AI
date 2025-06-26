@@ -69,7 +69,9 @@ class RatingController(Controller):
         rating_service: RatingService,
         property_id: UUID,
         rating_id: UUID,
-        data: ReviewResponseDTO,
+        data: Annotated[
+            ReviewResponseDTO, Body(media_type=RequestEncodingType.MULTI_PART)
+        ],
         request: Request[User, Token, Any],
     ) -> ReviewResponse:
         return await rating_service.add_response(

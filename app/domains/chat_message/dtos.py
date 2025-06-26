@@ -5,15 +5,17 @@ from pydantic import BaseModel, ConfigDict
 
 
 class CreateMessageDTO(BaseModel):
-    session_id: Optional[uuid.UUID]
-    user_id: Optional[uuid.UUID]
-    content: Optional[str]
-    image_list: Optional[list[UploadFile]]
+    session_id: Optional[uuid.UUID] = None
+    user_id: Optional[uuid.UUID] = None
+    content: Optional[str] = None
+    image_list: Optional[list[UploadFile]] = []
+    is_ai: bool = False
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
 class AskAIDTO(BaseModel):
     content: str
+    session_id: Optional[uuid.UUID]
     image_list: Optional[list[UploadFile]]
     save_message: Optional[bool]
     model_config = ConfigDict(arbitrary_types_allowed=True)

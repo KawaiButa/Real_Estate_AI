@@ -38,6 +38,7 @@ from seed.factories.user import UserFactory
 from seed.factories.article import ArticleFactory
 from seed.factories.review import ReviewFactory
 from seed.factories.banner import BannerFactory
+
 load_dotenv()
 
 
@@ -97,6 +98,7 @@ routes: list[ControllerRouterHandler] = [
     UserActionController,
     ChatMessageController,
     ChatSessionController,
+    # TourviewController,
     schema,
     helloWorld,
     create_static_files_router(
@@ -121,7 +123,7 @@ async def on_startUp() -> None:
             # (PropertyFactory, 1000),
             # (ImageFactory, None),
             # (ArticleFactory, 200),
-            (ReviewFactory, 10000),
+            # (ReviewFactory, 10000),
             # (BannerFactory, 10)
             # (UserActionFactory, 10000),
             # (UserSearchFactory, 10000),
@@ -135,7 +137,7 @@ app = Litestar(
     openapi_config=openapi.config,
     dependencies={"transaction": Provide(provide_transaction, sync_to_thread=True)},
     on_app_init=[oauth2_auth.on_app_init],
-    # on_startup=[on_startUp],
+    on_startup=[on_startUp],
     debug=os.environ.get("ENVIRONMENT") == "dev",
     exception_handlers={
         ValidationException: validation_exception_handler,

@@ -2,24 +2,24 @@ from typing import Annotated, Any
 import uuid
 from litestar import Controller, Request, Response, get, patch, post
 from litestar.di import Provide
+from database.utils import provide_pagination_params
 from domains.auth.dtos import LoginReturnSchema
-from database.models.property import Property
+from database.models.property import Property, PropertySchema
 from domains.properties.service import PropertyService, provide_property_service
 from database.models.user import User, UserSchema
 from domains.auth.guard import GuardRole, role_guard
 from domains.profile.dto import (
     ProfileReturnDTO,
-    ProfileUpdateDTO,
     UpdateUserDTO,
     UpdateUserSchema,
 )
 from domains.profile.service import ProfileService, provide_profile_service
 from litestar.security.jwt import Token
-from litestar.dto import DTOData
-from litestar.plugins.sqlalchemy import SQLAlchemyDTO
 from litestar.exceptions import ValidationException
 from litestar.params import Body
 from litestar.enums import RequestEncodingType
+from advanced_alchemy.filters import LimitOffset
+from litestar.pagination import OffsetPagination
 
 
 class ProfileController(Controller):
@@ -76,6 +76,20 @@ class ProfileController(Controller):
         profile_service: ProfileService,
     ) -> UserSchema:
         return await profile_service.update_profile(data=data, user_id=user_id)
+
+    @get(
+        "/favorite",
+        dependencies={
+            "pagination": Provide(provide_pagination_params),
+        },
+    )
+    async def get_favorites(
+        self,
+        profile_service: ProfileService,
+        pagination: LimitOffset,
+        request: Request[User, Token, Any],
+    ) -> OffsetPagination[PropertySchema]:
+        return await profile_service.get_favorites(request.user.id, pagination)
 
     @post("/favorite/{property_id: uuid}")
     async def toggle_favorite(

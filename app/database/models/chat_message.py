@@ -13,7 +13,8 @@ from database.models.base import BaseModel, BaseSchema
 
 if TYPE_CHECKING:
     from database.models.chat_session import ChatSession
-    
+
+
 @dataclass
 class ChatMessage(BaseModel):
     __tablename__ = "chat_messages"
@@ -34,20 +35,23 @@ class ChatMessage(BaseModel):
         backref="chat_message",
         lazy="selectin",
     )
-    sender_id: Mapped[uuid.UUID] = mapped_column(
-        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE")
+    sender_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        PG_UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True
     )
     session_id: Mapped[uuid.UUID] = mapped_column(
         PG_UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE")
     )
 
-    sender: Mapped["User"] = relationship("User", lazy="joined")
-    session: Mapped["ChatSession"] = relationship("ChatSession", lazy="noload", foreign_keys=[session_id])
+    sender: Mapped[Optional["User"]] = relationship("User", lazy="joined")
+    session: Mapped["ChatSession"] = relationship(
+        "ChatSession", lazy="noload", foreign_keys=[session_id]
+    )
+
 
 class ChatMessageSchema(BaseSchema):
     id: uuid.UUID
     session_id: uuid.UUID
-    sender_id: uuid.UUID
+    sender_id: Optional[uuid.UUID]
     content: Optional[str]
     images: list[ImageSchema]
     sender: Optional[UserSchema]

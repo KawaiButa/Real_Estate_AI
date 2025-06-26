@@ -1,10 +1,12 @@
 import uuid
 from collections.abc import AsyncGenerator
+
+from sqlalchemy import func, select
 from domains.image.service import ImageService
 from domains.auth.dtos import LoginReturnSchema
 from domains.supabase.service import SupabaseService, provide_supabase_service
 from domains.profile.dto import UpdateUserSchema
-from database.models.property import Property
+from database.models.property import Property, PropertySchema
 from database.models.user import User, UserSchema
 from domains.auth.repository import UserRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
@@ -12,6 +14,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from litestar.exceptions import ValidationException
 from sqlalchemy.orm import selectinload, noload
 from security.oauth2 import oauth2_auth
+from litestar.pagination import OffsetPagination
+from advanced_alchemy.filters import LimitOffset
 
 
 class ProfileService(SQLAlchemyAsyncRepositoryService[User]):
@@ -19,16 +23,17 @@ class ProfileService(SQLAlchemyAsyncRepositoryService[User]):
     supabase_service: SupabaseService = provide_supabase_service(bucket_name="profile")
 
     async def get_profile(self, user_id: uuid.UUID) -> UserSchema:
-        profile = await self.get_one_or_none(
-            User.id.__eq__(user_id),
-            load=[
-                selectinload(User.properties).noload(Property.owner),
-                selectinload(User.favorites).noload(Property.owner),
-            ],
-            uniquify=True,
+        session = self.repository.session
+        query = (
+            select(User)
+            .options(selectinload(User.favorites).noload(Property.owner))
+            .where(User.id == user_id)
         )
+        query = query.outerjoin(User.favorites)
+        profile = (await session.execute(query)).scalar()
         if not profile:
             raise ValidationException(f"Cannot find user with id {user_id}")
+
         return self.to_schema(profile, schema_type=UserSchema)
 
     async def update_profile(
@@ -36,9 +41,7 @@ class ProfileService(SQLAlchemyAsyncRepositoryService[User]):
         data: UpdateUserSchema,
         user_id: uuid.UUID,
     ) -> UserSchema:
-        profile = await self.get_one_or_none(
-            User.id == user_id
-        )
+        profile = await self.get_one_or_none(User.id == user_id)
 
         if not profile:
             raise ValidationException(f"Cannot find user with id {user_id}")
@@ -68,6 +71,28 @@ class ProfileService(SQLAlchemyAsyncRepositoryService[User]):
 
         return self.to_schema(updated_profile, schema_type=UserSchema)
 
+    async def get_favorites(
+        self, user_id: uuid.UUID, pagination: LimitOffset
+    ) -> OffsetPagination[PropertySchema]:
+        session = self.repository.session
+        stmt = (
+            select(Property, func.count().over().label("total_count"))
+            .join(User.favorites)
+            .where(User.id == user_id)
+            .options(noload(Property.owner), selectinload(Property.address))
+            .offset(pagination.offset)
+            .limit(pagination.limit)
+        )
+        result = await session.execute(stmt)
+        rows = result.all()
+        properties = [
+            self.to_schema(row[0], schema_type=PropertySchema) for row in rows
+        ]
+        total = rows[0][1] if rows else 0
+        return OffsetPagination(
+            properties, limit=pagination.limit, offset=pagination.offset, total=total
+        )
+
     async def toggle_favorite(self, user_id: uuid.UUID, property: Property) -> bool:
         user = await self.get_one_or_none(User.id.__eq__(user_id))
         if not user:
@@ -76,7 +101,7 @@ class ProfileService(SQLAlchemyAsyncRepositoryService[User]):
             user.favorites.remove(property)
         except ValueError as e:
             user.favorites.append(property)
-        await self.update(data=user, item_id=user_id)
+        await self.update(data=user, item_id=user_id, auto_commit=True)
         return True
 
     async def refresh_token(self, user_id: uuid) -> LoginReturnSchema:

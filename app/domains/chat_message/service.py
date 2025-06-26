@@ -1,10 +1,11 @@
 from collections.abc import AsyncGenerator
 from datetime import datetime
-from typing import List
+from typing import Dict, List
 import uuid
 from sqlalchemy.dialects import postgresql  # or mysql, sqlite depending on your DB
 from sqlalchemy import and_, desc, or_, select
 from sqlalchemy.orm import noload
+from transformers import pipeline
 
 from database.models.property import Property
 from domains.properties.service import PropertyService
@@ -20,9 +21,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from google.genai import types
 from configs.gemai import client
 import re
-from litestar.exceptions import ValidationException
+from litestar.exceptions import ValidationException, InternalServerException
 import requests
-from google.genai.types import Tool, GenerateContentConfig, GoogleSearch
+from google.genai.types import (
+    Tool,
+    GenerateContentConfig,
+    GoogleSearch,
+    UserContent,
+    ModelContent,
+)
 from litestar.repository.filters import LimitOffset
 from litestar.pagination import OffsetPagination
 
@@ -35,7 +42,9 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
     repository_type = ChatMessageRepository
     supabase_service: SupabaseService = provide_supabase_service(bucket_name="chat")
 
-    async def create_message(self, data: CreateMessageDTO, user_id: uuid.UUID):
+    async def create_message(
+        self, data: CreateMessageDTO, user_id: uuid.UUID, auto_commit: bool = True
+    ) -> ChatMessage:
         try:
             image_service = ImageService(session=self.repository.session)
             if not data.session_id:
@@ -55,8 +64,16 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
                     )
                 )
                 if not chat_session:
-                    user_1_id = min(str(user_id), str(data.user_id))
-                    user_2_id = max(str(user_id), str(data.user_id))
+                    user_1_id = (
+                        min(str(user_id), str(data.user_id))
+                        if data.user_id
+                        else data.user_id
+                    )
+                    user_2_id = (
+                        max(str(user_id), str(data.user_id))
+                        if data.user_id
+                        else user_id
+                    )
                     chat_session = await chat_session_service.create(
                         {
                             "user_1_id": user_1_id,
@@ -71,7 +88,7 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
                     "content": data.content if data.content != None else "",
                     "session_id": data.session_id,
                     "sender_id": uuid.UUID(user_id),
-                }
+                },
             )
             if data.image_list:
                 await image_service.create_many(
@@ -82,15 +99,16 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
                             "model_id": message.id,
                         }
                         for image in data.image_list
-                    ]
+                    ], 
                 )
-            return message, data
+            return message
         except Exception as e:
-            print(e)
-            await self.repository.session.rollback()
+            if auto_commit:
+                await self.repository.session.rollback()
             raise e
         finally:
-             await self.repository.session.commit()
+            if auto_commit:
+                await self.repository.session.commit()
 
     async def chat_messages_by_user_id(
         self, user_1_id: uuid.UUID, user_2_id: uuid.UUID, limit_offset: LimitOffset
@@ -124,20 +142,21 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
             offset=limit_offset.offset,
         )
 
-
     async def chat_messages_by_session_id(
         self, session_id: uuid.UUID, limit_offset: LimitOffset
     ) -> OffsetPagination[ChatMessage]:
-        query = select(ChatMessage).options(
-            noload(ChatMessage.sender)
-        )
+        query = select(ChatMessage).options(noload(ChatMessage.sender))
         query = query.where(ChatMessage.session_id == session_id)
         paginated = (
             query.order_by(desc(ChatMessage.created_at))
             .offset(limit_offset.offset)
             .limit(limit_offset.limit)
         )
-        print(paginated.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+        print(
+            paginated.compile(
+                dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+            )
+        )
         result = await self.repository.session.execute(paginated)
         items = result.scalars().all()
         total = await self.count()
@@ -274,6 +293,133 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
             ),
         )
         return response.text
+
+    async def summarize_session(self, session_id: uuid.UUID) -> str:
+        """
+        Summarize the entire chat session using a lightweight summarization model.
+        """
+        # Fetch all messages ordered oldest first
+        query = (
+            select(ChatMessage)
+            .where(ChatMessage.session_id == session_id)
+            .order_by(ChatMessage.created_at)
+        )
+        result = await self.repository.session.execute(query)
+        messages: List[ChatMessage] = result.scalars().all()
+        # Concatenate speaker labels
+        transcript = "\n".join(
+            f"{ 'User' if msg.sender_id else 'Assistant' }: {msg.content}"
+            for msg in messages
+        )
+        # Load summarizer (T5-small) on CPU
+        summarizer = pipeline("summarization", model="t5-small", device=-1)
+        summary_out = summarizer(
+            transcript, max_length=150, min_length=50, do_sample=False
+        )
+        return summary_out[0]["summary_text"]
+
+    async def build_chat_context(
+        self, session_id: uuid.UUID, window_size: int = 10
+    ) -> List[Dict[str, str]]:
+        """
+        Build a message context: start with system summary, then last `window_size` messages.
+        Returns a list of dicts with 'author' and 'content'.
+        """
+        context = []
+        subq = (
+            select(ChatMessage)
+            .where(ChatMessage.session_id == session_id)
+            .order_by(desc(ChatMessage.created_at))
+            .limit(window_size)
+        )
+        result = await self.repository.session.execute(subq)
+        recent_msgs = result.scalars().all()[::-1]
+        for msg in recent_msgs:
+            context.append(
+                UserContent(msg.content) if msg.sender_id else ModelContent(msg.content)
+            )
+        return context
+
+    async def ai_respond_to_user(
+        self, data: CreateMessageDTO, user_id: uuid.UUID, window_size: int = 10
+    ) -> ChatMessage:
+        """
+        Unified response handler:
+        - Summarize past.
+        - Build context.
+        - Always include a system instruction to detect suggestion intent across languages.
+        - Call Gemini, persist messages.
+
+        The LLM is instructed: if the user requests property suggestions, at the end of its reply include a single hashtag line:
+        #PROPERTY_CRITERIA:<json>
+        where <json> exactly matches the PropertySchema fields:
+        {
+            "title": string,
+            "property_category": string,
+            "transaction_type": string,
+            "price": number,
+            "bedrooms": integer,
+            "bathrooms": number,
+            "sqm": number,
+            "description": string,
+            "average_rating": number,
+            "status": boolean,
+        }
+        Otherwise omit the tag.
+        """
+        try:
+            if data.session_id:
+                summary = await self.summarize_session(data.session_id)
+                context = await self.build_chat_context(data.session_id, window_size)
+            else:
+                context = []
+            context.append(UserContent(data.content))
+            system_instruction = """You are a real estate assistant that help user choose and find the best match properties. Detect if the user wants property suggestions in any language.
+            Always respond helpfully. If suggestions are requested, at the very end append exactly one line with 
+            #PROPERTY_CRITERIA:<json>
+            where <json> exactly matches the PropertySchema fields:
+            {
+                "title": string,
+                "property_category": string,
+                "transaction_type": string,
+                "price": number,
+                "bedrooms": integer,
+                "bathrooms": number,
+                "sqm": number,
+                "description": string,
+                "average_rating": number,
+                "status": boolean,
+            }
+            If not, do not append the tag."""
+            system_instruction += f"Also, here is there summary of the conversation between you and this customer {summary}"
+            response = client.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=context,
+                config=GenerateContentConfig(
+                    tools=[Tool(google_search=GoogleSearch())],
+                    system_instruction=system_instruction,
+                ),
+            )
+            assistant_text = response.text
+            message = await self.create_message(
+                CreateMessageDTO(session_id=data.session_id, content=data.content),
+                user_id,
+                auto_commit=False,
+            )
+            message = await self.create(
+                {
+                    "content": assistant_text,
+                    "session_id": message.session_id,
+                    "sender_id": None,
+                }
+            )
+
+            return message
+        except Exception as e:
+            await self.repository.session.rollback()
+            raise InternalServerException("There is something wrong, try again later")
+        finally:
+            await self.repository.session.commit()
 
 
 async def provide_chat_message_service(
