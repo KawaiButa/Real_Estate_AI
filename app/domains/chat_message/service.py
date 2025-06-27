@@ -369,7 +369,7 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
         """
         try:
             if data.session_id:
-                summary = await self.summarize_session(data.session_id)
+                # summary = await self.summarize_session(data.session_id)
                 context = await self.build_chat_context(data.session_id, window_size)
             else:
                 context = []
@@ -391,7 +391,7 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
                 "status": boolean,
             }
             If not, do not append the tag."""
-            system_instruction += f"Also, here is there summary of the conversation between you and this customer {summary}"
+            # system_instruction += f"Also, here is there summary of the conversation between you and this customer {summary}"
             response = client.models.generate_content(
                 model="gemini-2.0-flash",
                 contents=context,

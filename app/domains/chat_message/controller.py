@@ -93,6 +93,11 @@ class ChatMessageController(Controller):
                         message.session_id,
                         message,
                     ),
+                    BackgroundTask(
+                        self.notify_message,
+                        request.user,
+                        message,
+                    ),
                 ]
             ),
         )
