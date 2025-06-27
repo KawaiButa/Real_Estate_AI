@@ -2,6 +2,7 @@ from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import Dict, List
 import uuid
+from venv import logger
 from sqlalchemy.dialects import postgresql  # or mysql, sqlite depending on your DB
 from sqlalchemy import and_, desc, or_, select
 from sqlalchemy.orm import noload
@@ -392,14 +393,26 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
             }
             If not, do not append the tag."""
             system_instruction += f"Also, here is there summary of the conversation between you and this customer {summary}"
-            response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=context,
-                config=GenerateContentConfig(
-                    tools=[Tool(google_search=GoogleSearch())],
-                    system_instruction=system_instruction,
-                ),
-            )
+            try:
+                response = client.models.generate_content(
+                    model="gemini-2.0-flash",
+                    contents=context,
+                    config=GenerateContentConfig(
+                        tools=[Tool(google_search=GoogleSearch())],
+                        system_instruction=system_instruction,
+                    ),
+                )
+            except Exception as e:
+                logger.exception("Failed to generate content from Gemini API!")
+                if hasattr(e, "error_details"):
+                    logger.error("Error details: %s", e.error_details)
+                if hasattr(e, "response"):
+                    try:
+                        body = e.response.text
+                        logger.error("Response body: %s", body)
+                    except Exception:
+                        pass
+                raise
             assistant_text = response.text
             message = await self.create_message(
                 CreateMessageDTO(session_id=data.session_id, content=data.content),
