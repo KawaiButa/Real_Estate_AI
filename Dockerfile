@@ -30,7 +30,7 @@ RUN poetry config virtualenvs.create false && \
 COPY . .
 
 # Expose port (adjust if needed)
-EXPOSE 8000
+EXPOSE 7860
 
 # Run the application using Poetry's runner; adjust the command if your app entrypoint differs.
-CMD ["sh", "-c", "cd app && python -m litestar run --host 0.0.0.0 --port 8000"]
+CMD ["sh", "-c", "cd app && python -m litestar run --host 0.0.0.0 --port 7860"]
