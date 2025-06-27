@@ -6,8 +6,7 @@ colorTo: "blue"
 sdk: "docker"
 sdk_version: "latest"
 app_file: app.py
--------------
-
+---
 # Real Estate Backend Application
 
 ## Introduction
