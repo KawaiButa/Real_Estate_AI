@@ -1,13 +1,11 @@
 ---
-
 title: Real Estate Backend Application
 emoji: "🏠"
 colorFrom: "pink"
 colorTo: "blue"
 sdk: "docker"
-sdk\_version: "latest"
-app\_file: app.py
-pinned: false
+sdk_version: "latest"
+app_file: app.py
 -------------
 
 # Real Estate Backend Application
