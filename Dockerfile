@@ -36,7 +36,6 @@ EXPOSE 7860
 RUN mkdir -p /tmp/hf_cache \
     && chmod 777 /tmp/hf_cache
 ENV XDG_CACHE_HOME=/tmp/hf_cache
-RUN chmod 
 
 # Run the application using Poetry's runner; adjust the command if your app entrypoint differs.
 CMD ["sh", "-c", "cd app && python -m litestar run --host 0.0.0.0 --port 7860"]
