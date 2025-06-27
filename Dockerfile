@@ -32,5 +32,9 @@ COPY . .
 # Expose port (adjust if needed)
 EXPOSE 7860
 
+#CONFIG TEMP DIRECTORY
+RUN mkdir -p /tmp/hf_cache
+ENV XDG_CACHE_HOME=/tmp/hf_cache
+
 # Run the application using Poetry's runner; adjust the command if your app entrypoint differs.
 CMD ["sh", "-c", "cd app && python -m litestar run --host 0.0.0.0 --port 7860"]
