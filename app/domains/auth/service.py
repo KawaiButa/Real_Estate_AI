@@ -82,6 +82,7 @@ class AuthService(SQLAlchemyAsyncRepositoryService[User]):
                                 }
                                 for role in user.roles
                             ],
+                            "device_token": user.device_token
                         }
                     ),
                 ),

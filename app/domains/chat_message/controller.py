@@ -50,7 +50,7 @@ class ChatMessageController(Controller):
                 "content": message.content,
                 "sender_id": str(message.sender_id),
                 "chat_session_id": str(message.session_id),
-                "created_at": message.created_at.timestamp(),
+                "created_at": str(message.created_at.timestamp()),
             },
         )
 
