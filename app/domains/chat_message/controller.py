@@ -21,7 +21,7 @@ from litestar.enums import RequestEncodingType
 from litestar.security.jwt import Token
 from litestar.status_codes import HTTP_200_OK
 from litestar.repository.filters import LimitOffset
-
+from litestar.exceptions import NotFoundException
 from litestar.pagination import OffsetPagination
 
 
@@ -132,3 +132,12 @@ class ChatMessageController(Controller):
         return await chat_service.chat_messages_by_session_id(
             chat_session_id, limit_offset
         )
+
+    @get("/{chat_message_id:uuid}")
+    async def get_chat_message_by_id(
+        self, chat_message_id: uuid.UUID, chat_service: ChatMessageService
+    ) -> ChatMessage:
+        message = await chat_service.get_one_or_none(ChatMessage.id == chat_message_id)
+        if not message:
+            raise NotFoundException(f"No message found with id {chat_message_id}")
+        return message
