@@ -1,5 +1,6 @@
 from collections import defaultdict
 from collections.abc import AsyncGenerator
+from typing import List
 import uuid
 
 from sqlalchemy import select
@@ -11,29 +12,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 class UserActionRepository(SQLAlchemyAsyncRepository[UserAction]):
     model_type = UserAction
-    async def get_relevant_properties(self, user_id: uuid.UUID) -> dict:
+
+    async def get_relevant_properties(self, user_id: uuid.UUID) -> List[uuid.UUID]:
         prop_ids_subq = (
             select(UserAction.property_id)
             .where(UserAction.user_id == user_id)
+            .where(UserAction.action == "view")
             .distinct()
             .limit(10)
         ).subquery()
 
-        # Step 2: fetch all actions for those properties
         result = await self.session.execute(
             select(UserAction)
             .where(
                 UserAction.user_id == user_id,
-                UserAction.property_id.in_(select(prop_ids_subq))
+                UserAction.property_id.in_(select(prop_ids_subq)),
             )
             .order_by(UserAction.property_id, UserAction.created_at)
         )
         actions = result.scalars().all()
+        return [action.property_id for action in actions]
 
-        grouped: dict = {}
-        for act in actions:
-            grouped[str(act.property_id)].append(act)
-        return grouped
+
 class UserActionService(SQLAlchemyAsyncRepositoryService[UserAction]):
     repository_type = UserActionRepository
 

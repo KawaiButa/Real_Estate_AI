@@ -39,20 +39,33 @@ class ChatMessageController(Controller):
         if not user.device_token:
             return
         notify_service = NotificationService()
-        title = "You have a new message"
-        body = f"You have a new message from {user.name}. \n{message.content}"
+        title = "AI Assistant"
+        body = (
+            f"You have a new message from {user.name}."
+            if message.sender_id
+            else "AI has the answer you need"
+        )
         notify_service.send_to_token(
             token=user.device_token,
             title=title,
             body=body,
             data={
                 "type": "chat",
-                "content": message.content,
+                "id": str(message.id),
                 "sender_id": str(message.sender_id),
                 "chat_session_id": str(message.session_id),
                 "created_at": str(message.created_at.timestamp()),
             },
         )
+
+    async def chat_with_ai(
+        self,
+        data: CreateMessageDTO,
+        user: User,
+        chat_service: ChatMessageService,
+    ):
+        message = await chat_service.ai_respond_to_user(data, user_id=user.id)
+        self.notify_message(user, message)
 
     @post("")
     async def create_message(
@@ -64,42 +77,29 @@ class ChatMessageController(Controller):
         chat_service: ChatMessageService,
         chat_session_service: ChatSessionService,
     ) -> Response:
-        if not data.is_ai:
-            message = await chat_service.create_message(data, request.user.id)
-            return Response(
-                chat_service.to_schema(message, schema_type=ChatMessageSchema),
-                background=BackgroundTasks(
-                    [
-                        BackgroundTask(
-                            self.notify_message,
-                            request.user,
-                            message,
-                        ),
-                        BackgroundTask(
-                            chat_session_service.update_last_message,
-                            message.session_id,
-                            message,
-                        ),
-                    ]
+        message = await chat_service.create_message(data, request.user.id)
+        background_task_list = [
+            BackgroundTask(
+                chat_session_service.update_last_message,
+                message.session_id,
+                message,
+            ),
+        ]
+        if data.is_ai:
+            background_task_list.append(
+                BackgroundTask(self.chat_with_ai, data, request.user, chat_service)
+            )
+        else:
+            background_task_list.append(
+                BackgroundTask(
+                    self.notify_message,
+                    request.user,
+                    message,
                 ),
             )
-        message = await chat_service.ai_respond_to_user(data, request.user.id)
         return Response(
             chat_service.to_schema(message, schema_type=ChatMessageSchema),
-            background=BackgroundTasks(
-                [
-                    BackgroundTask(
-                        chat_session_service.update_last_message,
-                        message.session_id,
-                        message,
-                    ),
-                    BackgroundTask(
-                        self.notify_message,
-                        request.user,
-                        message,
-                    ),
-                ]
-            ),
+            background=BackgroundTasks(background_task_list),
         )
 
     @post("/ai", no_auth=True, status_code=HTTP_200_OK)

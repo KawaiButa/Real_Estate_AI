@@ -199,17 +199,13 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         pagination: LimitOffset,
         user_id: uuid.UUID,
     ) -> CursorPagination[str, Property]:
-        # 1) Build Pinecone metadata filter
         meta_filter = self._build_pinecone_filter(search_param)
-        # 2) Generate user embedding from past interactions
         user_embedding = await self._compute_user_embedding(user_id)
-        # 3) Query Pinecone
         pine_res = property_index.query(
             vector=user_embedding,
             filter=meta_filter,
             top_k=pagination.limit,
-            include_metadata=True,
-            # next_page_token=search_param.next_page_token,
+            include_metadata=False,
         )
         ids = [m["id"] for m in pine_res["matches"]]
         props = await self._fetch_properties_from_ids(ids)
@@ -261,19 +257,21 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         if search_param.lat is not None and search_param.lng is not None:
             query = query.join(Property.address)
             radius_meters = search_param.radius * 1000
-            radius_degrees = radius_meters / 111320.0  
+            radius_degrees = radius_meters / 111320.0
             lat = search_param.lat
             lng = search_param.lng
             min_lat = lat - radius_degrees
             max_lat = lat + radius_degrees
             min_lng = lng - radius_degrees
             max_lng = lng + radius_degrees
-            query = query.where(and_(
-                Address.latitude >= min_lat,
-                Address.latitude <= max_lat,
-                Address.longitude >= min_lng,
-                Address.longitude <= max_lng,
-            ))
+            query = query.where(
+                and_(
+                    Address.latitude >= min_lat,
+                    Address.latitude <= max_lat,
+                    Address.longitude >= min_lng,
+                    Address.longitude <= max_lng,
+                )
+            )
         # price filters
         if search_param.min_price is not None:
             query = query.where(Property.price >= search_param.min_price)
@@ -281,10 +279,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             query = query.where(Property.price <= search_param.max_price)
         # Have review
         if search_param.has_review:
-            subquery = (
-                select(Review.id)
-                .where(Review.property_id == Property.id)
-            )
+            subquery = select(Review.id).where(Review.property_id == Property.id)
             query = query.where(exists(subquery))
         # categorical
         if search_param.property_category:
@@ -392,16 +387,12 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
 
     async def _compute_user_embedding(self, user_id: uuid.UUID) -> list[float]:
         user_action_repository = UserActionRepository(session=self.repository.session)
-        properties_action = await user_action_repository.get_relevant_properties(
+        property_id_list = await user_action_repository.get_relevant_properties(
             user_id=user_id
         )
-        if len(properties_action) < 5:
-            return next(
-                iter(property_index.fetch(["0"], namespace="Mean").vectors.values())
-            ).values
-        result = await self.fetch_pinecone_document_by_id(
-            [UUID(id) for id in properties_action.keys()]
-        )
+        if len(property_id_list) == 0:
+            return next(iter(property_index.fetch(["0"]).vectors.values())).values
+        result = await self.fetch_pinecone_document_by_id(property_id_list)
         vectors = [value.values for value in result.values()]
         mean_vector = np.mean(vectors, axis=0).tolist()
         return mean_vector
