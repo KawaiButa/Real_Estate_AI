@@ -205,7 +205,6 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             vector=user_embedding,
             filter=meta_filter,
             top_k=pagination.limit,
-            include_metadata=False,
         )
         ids = [m["id"] for m in pine_res["matches"]]
         props = await self._fetch_properties_from_ids(ids)
@@ -381,7 +380,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         """
         Fetch a single vector document (and its metadata) by ID from Pinecone.
         """
-        response = property_index.fetch(ids=doc_ids, include_metadata=True)
+        response = property_index.fetch(ids=[str(idx) for idx in doc_ids])
         vectors = response.vectors
         return vectors
 
