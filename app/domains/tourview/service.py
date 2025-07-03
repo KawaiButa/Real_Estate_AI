@@ -31,7 +31,7 @@ class TourviewRepository(SQLAlchemyAsyncRepository[Tourview]):
 
 transfer_sessions = {}
 
-UPLOAD_DIR = Path("uploads/tourview")
+UPLOAD_DIR = Path("/tmp/uploads/tourview")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
