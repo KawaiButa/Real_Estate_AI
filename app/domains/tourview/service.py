@@ -128,7 +128,7 @@ class TourviewService(SQLAlchemyAsyncRepositoryService[Tourview]):
             if not session:
                 raise NotFoundException("Invalid transfer session ID.")
             chunk_size = len(chunk)
-            file_path = session["path"] / f"{session["file_count"] + 1}"
+            file_path = session["path"] / f"{session['file_count'] + 1}"
             async with aiofiles.open(file_path, "wb") as f:
                 await f.write(chunk)
 
