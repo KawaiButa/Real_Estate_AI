@@ -4,6 +4,7 @@ from litestar.exceptions import ValidationException
 from litestar import Litestar, MediaType, Request, Response, get
 from litestar.types import ControllerRouterHandler
 from litestar.plugins.sqlalchemy import SQLAlchemyPlugin
+from domains.tourview.controller import TourviewController
 from domains.banner.controller import BannerController
 from domains.review.controller import RatingController
 from domains.property_verification.controller import VerificationController
@@ -98,7 +99,7 @@ routes: list[ControllerRouterHandler] = [
     UserActionController,
     ChatMessageController,
     ChatSessionController,
-    # TourviewController,
+    TourviewController,
     schema,
     helloWorld,
     create_static_files_router(

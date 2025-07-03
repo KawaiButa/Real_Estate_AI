@@ -2,7 +2,6 @@ from typing import Annotated, Any, Optional
 import uuid
 from litestar import Controller, Request, delete, get, patch, post
 from litestar.di import Provide
-from database.models.review import Review
 from database.utils import provide_pagination_params
 from domains.properties.service import (
     PropertySearchParams,
@@ -14,14 +13,11 @@ from litestar.params import Parameter
 from database.models.property import Property, PropertySchema
 from domains.properties.dtos import (
     CreatePropertyDTO,
-    CreatePropertyReturnDTO,
     CreatePropertySchema,
-    PropertySearchReturnDTO,
     UpdatePropertyDTO,
     UpdatePropertySchema,
     UpdateStatusModel,
 )
-from litestar.dto import DTOData
 from litestar.security.jwt.token import Token
 from database.models.user import User
 from litestar.plugins.sqlalchemy import SQLAlchemyDTO
@@ -29,10 +25,10 @@ from litestar.exceptions import ValidationException, NotAuthorizedException
 from litestar.status_codes import HTTP_200_OK, HTTP_201_CREATED
 from advanced_alchemy.filters import LimitOffset
 from litestar.pagination import OffsetPagination
-from domains.auth.guard import GuardRole, login_guard, role_guard
+from domains.auth.guard import GuardRole, role_guard
 from litestar.params import Body
 from litestar.enums import RequestEncodingType
-from sqlalchemy.orm import lazyload, selectinload
+from sqlalchemy.orm import lazyload
 
 
 class PropertyController(Controller):
