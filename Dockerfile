@@ -9,9 +9,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 # Install system dependencies
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc git curl unzip libpq-dev \
+    && apt-get install -y --no-install-recommends gcc git curl unzip libpq-dev libgl1 \
     && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* 
+    && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry
 RUN curl -sSL https://install.python-poetry.org | python3 -
