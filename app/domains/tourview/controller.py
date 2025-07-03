@@ -9,7 +9,6 @@ from domains.tourview.service import TourviewService, provide_tourview_service
 from domains.tourview.dtos import (
     StartTransferSessionDTO,
     StartTransferResponseDTO,
-    FinalizeTransferResponseDTO,
 )
 from database.models.tourview import Tourview
 from litestar.background_tasks import BackgroundTask

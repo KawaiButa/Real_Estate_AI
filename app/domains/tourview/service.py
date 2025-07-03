@@ -234,10 +234,10 @@ class TourviewService(SQLAlchemyAsyncRepositoryService[Tourview]):
         cap.release()
         return selected_frames
 
-    def stitch_video(path: str, property_id: uuid.UUID, name: str) -> Tourview:
+    def stitch_video(self, path: str, property_id: uuid.UUID, name: str) -> Tourview:
         pass
 
-    def stich_images(paths: list[str], property_id: uuid.UUID, name: str) -> Tourview:
+    def stitch_images(self, paths: list[str], property_id: uuid.UUID, name: str) -> Tourview:
         pass
 
 
