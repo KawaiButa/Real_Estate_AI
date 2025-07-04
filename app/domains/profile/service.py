@@ -26,7 +26,10 @@ class ProfileService(SQLAlchemyAsyncRepositoryService[User]):
         session = self.repository.session
         query = (
             select(User)
-            .options(selectinload(User.favorites).noload(Property.owner))
+            .options(
+                selectinload(User.favorites).noload(Property.owner),
+                selectinload(User.properties).noload(Property.owner),
+            )
             .where(User.id == user_id)
         )
         query = query.outerjoin(User.favorites)
