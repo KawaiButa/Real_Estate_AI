@@ -341,10 +341,8 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             mf.setdefault("bathrooms", {})["$gte"] = search_param.min_bathrooms
         if search_param.min_sqm:
             mf.setdefault("sqm", {})["$gte"] = search_param.min_sqm
-        if search_param.city:
-            mf["city"] = {"$ilike": f"%{search_param.city}%"}
-        if search_param.district:
-            mf["street"] = {"$ilike": f"%{search_param.district}%"}
+        # if search_param.city:
+        #     mf["city"] = {"$eq": f"%{search_param.city}%"}
         return mf
 
     async def _fetch_properties_from_ids(self, ids: list[str]) -> list[Property]:
