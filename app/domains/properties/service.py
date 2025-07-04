@@ -198,7 +198,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         search_param: PropertySearchParams,
         pagination: LimitOffset,
         user_id: uuid.UUID,
-    ) -> CursorPagination[str, Property]:
+    ) -> OffsetPagination[str, Property]:
         meta_filter = self._build_pinecone_filter(search_param)
         user_embedding = await self._compute_user_embedding(user_id)
         pine_res = property_index.query(
@@ -209,10 +209,11 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         ids = [m["id"] for m in pine_res["matches"]]
         props = await self._fetch_properties_from_ids(ids)
         await self._record_search(user_id, search_param, recommended=True)
-        return CursorPagination(
+        return OffsetPagination(
             items=props,
-            cursor=pine_res.get("next_page_token"),
-            results_per_page=pagination.limit,
+            offset=pagination.offset,
+            limit=pagination.limit,
+            total=len(props) + pagination.limit
         )
 
     async def _search_normal(
