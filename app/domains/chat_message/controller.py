@@ -3,6 +3,7 @@ import uuid
 from litestar import Controller, Request, Response, get, post
 from litestar.di import Provide
 from litestar.background_tasks import BackgroundTask, BackgroundTasks
+from sqlalchemy import select
 from domains.chat_session.service import (
     ChatSessionService,
     provide_chat_session_service,
@@ -23,6 +24,7 @@ from litestar.status_codes import HTTP_200_OK
 from litestar.repository.filters import LimitOffset
 from litestar.exceptions import NotFoundException
 from litestar.pagination import OffsetPagination
+from sqlalchemy.orm import noload
 
 
 class ChatMessageController(Controller):
@@ -136,8 +138,13 @@ class ChatMessageController(Controller):
     @get("/{chat_message_id:uuid}")
     async def get_chat_message_by_id(
         self, chat_message_id: uuid.UUID, chat_service: ChatMessageService
-    ) -> ChatMessage:
-        message = await chat_service.get_one_or_none(ChatMessage.id == chat_message_id)
+    ) -> ChatMessageSchema:
+        query = (
+            select(ChatMessage)
+            .options(noload(ChatMessage.sender), noload(ChatMessage.session))
+            .where(ChatMessage.id == chat_message_id)
+        )
+        message = (await chat_service.repository.session.execute(query)).scalar()
         if not message:
             raise NotFoundException(f"No message found with id {chat_message_id}")
-        return message
+        return chat_service.to_schema(message, schema_type=ChatMessageSchema)
