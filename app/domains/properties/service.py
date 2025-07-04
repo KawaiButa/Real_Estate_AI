@@ -198,7 +198,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         search_param: PropertySearchParams,
         pagination: LimitOffset,
         user_id: uuid.UUID,
-    ) -> OffsetPagination[str, Property]:
+    ) -> OffsetPagination[Property]:
         meta_filter = self._build_pinecone_filter(search_param)
         user_embedding = await self._compute_user_embedding(user_id)
         pine_res = property_index.query(
@@ -213,7 +213,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             items=props,
             offset=pagination.offset,
             limit=pagination.limit,
-            total=len(props) + pagination.limit
+            total=len(props) + pagination.limit,
         )
 
     async def _search_normal(
