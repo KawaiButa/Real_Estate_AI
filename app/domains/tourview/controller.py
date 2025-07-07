@@ -1,10 +1,12 @@
 from __future__ import annotations
-from typing import List, Union
+from typing import Any, List, Union
 import uuid
-from litestar import Controller, Response, get, post, status_codes
+from litestar import Controller, Request, Response, get, post
 from litestar.di import Provide
 from litestar.params import Body
 from litestar.datastructures import UploadFile
+from database.models.user import User
+from domains.notification.service import NotificationService
 from domains.tourview.service import TourviewService, provide_tourview_service
 from domains.tourview.dtos import (
     StartTransferSessionDTO,
@@ -12,6 +14,8 @@ from domains.tourview.dtos import (
 )
 from database.models.tourview import Tourview
 from litestar.background_tasks import BackgroundTask
+from litestar.security.jwt import Token
+
 
 class TourviewController(Controller):
     path = "/properties/{property_id:uuid}/tourview"
@@ -58,7 +62,7 @@ class TourviewController(Controller):
     @post(
         "/transfer/{session_id:uuid}/chunk",
         path_override="/tourview/transfer/{session_id:uuid}/chunk",  # Override class path
-        no_auth=True,
+        # no_auth=True,
     )
     async def upload_chunk(
         self,
@@ -76,24 +80,60 @@ class TourviewController(Controller):
     @post(
         "/transfer/{session_id:uuid}/finalize",
         # path_override="/tourview/transfer/{session_id:uuid}/finalize",  # Override class path
-        no_auth=True,
+        # no_auth=True,
     )
     async def finalize_transfer(
         self,
         property_id: uuid.UUID,
+        request: Request[User, Token, Any],
         service: TourviewService,
         session_id: uuid.UUID,
-        
     ) -> str:
         """
         Extra Endpoint: Finalizes a chunked transfer after all chunks are uploaded.
         This is necessary to trigger the processing of video/panorama files.
         """
         result, name = await service.finalize_transfer(session_id)
-        background_task = BackgroundTask(self.create_tourview, result, property_id, name, service)
+        background_task = BackgroundTask(
+            self.create_tourview, request.user, result, property_id, name, service
+        )
         return Response("Transfer completed successfully.", background=background_task)
-    async def create_tourview(self, path: Union[str, list[str]], property_id: uuid.UUID, name: str, service: TourviewService):
-        if path is str:
-            service.stitch_video(path, property_id, name)
+
+    async def notify_partner(self, user: User, tourview: Union[Tourview, None]):
+        if not user.device_token:
+            return
+        notify_service = NotificationService()
+        title = "Tourview Fail" if tourview is None else "Tourview Complete"
+        body = (
+            f"Fail when trying to create your tourview."
+            if tourview is None
+            else f"Your tourview for {tourview.name} is complete. Try it right away!!!"
+        )
+        notify_service.send_to_token(
+            token=user.device_token,
+            title=title,
+            body=body,
+            data=(
+                {
+                    "type": "tourview",
+                    "id": str(tourview.id),
+                    "url": str(tourview.image.url),
+                }
+                if tourview
+                else None
+            ),
+        )
+
+    async def create_tourview(
+        self,
+        user: User,
+        path: Union[str, list[str]],
+        property_id: uuid.UUID,
+        name: str,
+        service: TourviewService,
+    ):
+        if isinstance(path, str):
+            tourview = await service.stitch_video(path, property_id, name)
         else:
-            service.stitch_images(path, property_id, name)
+            tourview = await service.stitch_images(path, property_id, name)
+        await self.notify_partner(user, tourview)

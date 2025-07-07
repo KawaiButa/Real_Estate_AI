@@ -1,4 +1,7 @@
 from collections.abc import AsyncGenerator
+from io import BytesIO
+import os
+from PIL import Image as PILImage
 from pathlib import Path
 import shutil
 import cv2
@@ -6,13 +9,17 @@ from typing import List, Optional, Tuple, Union
 import uuid
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
 from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
-import numpy as np
+from database.models.image import Image
+from domains.image.service import ImageService
+from domains.tourview.utils import (
+    generate_panorama_image_from_path,
+    generate_panorama_image_from_video,
+)
 from domains.tourview.dtos import (
     StartTransferSessionDTO,
 )
 from database.models.tourview import Tourview
 from sqlalchemy.ext.asyncio import AsyncSession
-from PIL import Image
 from domains.supabase.service import SupabaseService
 import aiofiles
 
@@ -81,7 +88,7 @@ class TourviewService(SQLAlchemyAsyncRepositoryService[Tourview]):
 
         # 3. Create database records
         # NOTE: final_image_path should be a public URL after moving it to a public storage (e.g., S3)
-        new_image = Image(
+        new_image = PILImage(
             url=str(final_image_path),  # This should be a URL, not a local path in prod
             model_id=prop.id,
             model_type="property_tourview",
@@ -157,7 +164,7 @@ class TourviewService(SQLAlchemyAsyncRepositoryService[Tourview]):
                 final_processed_path = await self.reassemble_and_process_chunks(
                     file_paths, session["type"]
                 )
-                return final_processed_path, session["name"]
+                return str(final_processed_path), session["name"]
             elif session["type"] == "image":
                 return file_paths, session["name"]
             else:
@@ -192,54 +199,101 @@ class TourviewService(SQLAlchemyAsyncRepositoryService[Tourview]):
 
         print(f"Reassembly complete. Final file at {final_file}")
         return final_file
-
-    def extract_and_select_frames(
-        self, video_path, min_movement=5, max_movement=50, step=5
-    ):
-        cap = cv2.VideoCapture(video_path)
-        if not cap.isOpened():
-            raise RuntimeError("Could not open video.")
-
-        selected_frames = []
-        prev_gray = None
-        frame_idx = 0
-
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
-
-            if frame_idx % step != 0:
-                frame_idx += 1
-                continue
-
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            if prev_gray is not None:
-                # Calculate optical flow or feature movement
-                flow = cv2.calcOpticalFlowFarneback(
-                    prev_gray, gray, None, 0.5, 3, 15, 3, 5, 1.2, 0
+    
+    async def stitch_video(
+        self, path: str, property_id: uuid.UUID, name: str
+    ) -> Tourview:
+        try:
+            panorama = generate_panorama_image_from_video(path)
+            image_rgb = cv2.cvtColor(panorama, cv2.COLOR_BGR2RGB)
+            pil_image = PILImage.fromarray(image_rgb)
+            buffer = BytesIO()
+            pil_image.save(buffer, format="PNG")
+            buffer.seek(0)
+            bucket = self.supabase_service.supabase_client.storage.from_("tourview")
+            try:
+                result = bucket.upload(
+                    f"tourview_{property_id}_{name}.png",
+                    buffer.read(),
+                    {"content-type": "image/png"},
                 )
-                movement = np.linalg.norm(flow, axis=2).mean()
-                print(f"Frame {frame_idx}: avg movement={movement:.2f}")
+            except Exception as e:
+                raise InternalServerException("Unable to connect to Storage Service")
+            try:
+                public_url = bucket.get_public_url(f"tourview_{property_id}_{name}.png")
+            except:
+                raise InternalServerException(
+                    f"Unable to find the public url for tourview_{property_id}_{name}.png"
+                )
+            image_service = ImageService(session=self.repository.session)
+            image = await image_service.create(
+                Image(
+                    **{
+                        "url": public_url,
+                        "model_id": None,
+                        "model_type": None,
+                    }
+                )
+            )
+            tourview = await self.create(
+                Tourview(image_id=image.id, property_id=property_id, name=name)
+            )
+            return tourview
+        except Exception as e:
+            print(e)
+            await self.repository.session.rollback()
+            raise InternalServerException("Error when trying to create your tourview")
+        finally:
+            await self.repository.session.commit()
+            os.remove(path)
 
-                if min_movement < movement < max_movement:
-                    selected_frames.append(frame)
-            else:
-                # Always select the first frame
-                selected_frames.append(frame)
-
-            prev_gray = gray
-            frame_idx += 1
-
-        cap.release()
-        return selected_frames
-
-    def stitch_video(self, path: str, property_id: uuid.UUID, name: str) -> Tourview:
-        pass
-
-    def stitch_images(self, paths: list[str], property_id: uuid.UUID, name: str) -> Tourview:
-        pass
-
+    async def stitch_images(
+        self, paths: list[str], property_id: uuid.UUID, name: str
+    ) -> Tourview:
+        try:
+            panorama = generate_panorama_image_from_path(paths)
+            image_rgb = cv2.cvtColor(panorama, cv2.COLOR_BGR2RGB)
+            pil_image = PILImage.fromarray(image_rgb)
+            buffer = BytesIO()
+            pil_image.save(buffer, format="PNG")
+            buffer.seek(0)
+            bucket = self.supabase_service.supabase_client.storage.from_("tourview")
+            try:
+                result = await bucket.upload(
+                    f"tourview_{property_id}_{name}.png",
+                    buffer.read(),
+                    {"content-type": "image/png"},
+                )
+            except Exception as e:
+                raise InternalServerException("Unable to connect to Storage Service")
+            try:
+                public_url = bucket.get_public_url(f"tourview_{property_id}_{name}.png")
+            except:
+                raise InternalServerException(
+                    f"Unable to find the public url for tourview_{property_id}_{name}.png"
+                )
+            image_service = ImageService(session=self.repository.session)
+            image = await image_service.create(
+                Image(
+                    **{
+                        "url": public_url,
+                        "model_id": None,
+                        "model_type": None,
+                    }
+                )
+            )
+            tourview = await self.create(
+                Tourview(image_id=image.id, property_id=property_id, name=name)
+            )
+            return tourview
+        except Exception as e:
+            print(e)
+            await self.repository.session.rollback()
+            raise InternalServerException("Error when trying to create your tourview")
+        finally:
+            await self.repository.session.commit()
+            for path in paths:
+                os.remove(path)
 
 async def provide_tourview_service(
     db_session: AsyncSession,

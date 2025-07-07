@@ -70,19 +70,15 @@ class SupabaseService:
             raise InternalServerException(
                 f"Failed to delete old image from storage: {e}"
             )
-        # Prepare the new file for upload.
         new_image_content = await file.read()
         file_extension = file.filename.split(".")[-1] if "." in file.filename else "jpg"
-        # Reuse the old filename if available; otherwise, generate a new one.
         filename = old_filename if old_filename else f"{uuid.uuid4()}.{file_extension}"
-        # Write file content to a temporary file.
         fd, tmp_path = tempfile.mkstemp()
         try:
             with open(tmp_path, "wb") as tmp_file:
                 tmp_file.write(new_image_content)
         finally:
             os.close(fd)
-        # Upload the new file to Supabase Storage.
         try:
             self.supabase_client.storage.from_(bucket_name).upload(
                 filename,
@@ -99,7 +95,6 @@ class SupabaseService:
             filename
         )
         return public_url
-
 
 def provide_supabase_service(bucket_name: str) -> SupabaseService:
     return SupabaseService(bucket_name=bucket_name)
