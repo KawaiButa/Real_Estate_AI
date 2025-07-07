@@ -192,7 +192,7 @@ class TourviewService(SQLAlchemyAsyncRepositoryService[Tourview]):
             for chunk_path in chunk_paths:
                 async with aiofiles.open(chunk_path, "rb") as f_in:
                     while True:
-                        chunk_data = await f_in.read()  # read in 1MB blocks
+                        chunk_data = await f_in.read(1024 * 1024)  # read in 1MB blocks
                         if not chunk_data:
                             break
                         await f_out.write(chunk_data)
