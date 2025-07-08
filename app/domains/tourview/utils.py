@@ -168,12 +168,13 @@ def extract_and_select_frames(
     max_movement=30,
     step=3,
     resize_scale=0.25,
+    max_frames=20,
 ):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise RuntimeError("Failed to open video")
 
-    selected_frames = []
+    scored_frames = []
     prev_gray = None
     frame_idx = 0
 
@@ -196,17 +197,23 @@ def extract_and_select_frames(
             )
             movement = np.linalg.norm(flow, axis=2).mean()
             print(f"Frame {frame_idx}: movement={movement:.2f}")
+
             if min_movement < movement < max_movement:
-                selected_frames.append(frame)  # Store original full-size frame
+                scored_frames.append((frame, movement))
         else:
-            selected_frames.append(frame)
+            scored_frames.append((frame, float('inf')))
 
         prev_gray = gray
         frame_idx += 1
 
     cap.release()
-    return selected_frames
 
+    if len(scored_frames) > max_frames:
+        scored_frames.sort(key=lambda x: x[1], reverse=True)
+        scored_frames = scored_frames[:max_frames]
+
+    selected_frames = [f for f, _ in scored_frames]
+    return selected_frames
 
 def generate_panorama_image_from_video(video_path: str):
     images = extract_and_select_frames(video_path)
