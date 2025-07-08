@@ -1,6 +1,5 @@
 import os
 from typing import List
-from sqlalchemy import Tuple
 import torch
 from lightglue.utils import rbd
 from lightglue import LightGlue, SuperPoint
@@ -164,23 +163,17 @@ def file_has_moov_atom(path, check_size=10 * 1024 * 1024):
 
 
 def extract_and_select_frames(
-    video_path: str,
-    step: int = 5,
-    resize_scale: float = 0.25,
-    min_movement: float = 2.0,
-    top_k: int = 10,
-) -> List[np.ndarray]:
-    """
-    Two‑pass, low‑memory keyframe extraction:
-      Pass 1: compute (frame_idx, movement) for every step‑th frame.
-      Pass 2: read only the chosen frames by seeking to their indices.
-    """
-    # ——— PASS 1: Compute movements ———
+    video_path,
+    min_movement=3,
+    max_movement=30,
+    step=3,
+    resize_scale=0.25,
+):
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        raise RuntimeError(f"Cannot open video: {video_path}")
+        raise RuntimeError("Failed to open video")
 
-    movements: List[Tuple[int, float]] = []
+    selected_frames = []
     prev_gray = None
     frame_idx = 0
 
@@ -189,67 +182,30 @@ def extract_and_select_frames(
         if not ret:
             break
 
-        if frame_idx % step == 0:
-            # downscale & grayscale for faster flow
-            small = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
-            gray = cv2.cvtColor(small, cv2.COLOR_BGR2GRAY)
+        if frame_idx % step != 0:
+            frame_idx += 1
+            continue
 
-            if prev_gray is not None:
-                flow = cv2.calcOpticalFlowFarneback(
-                    prev_gray, gray, None,
-                    pyr_scale=0.5, levels=1, winsize=3,
-                    iterations=3, poly_n=5, poly_sigma=1.1, flags=0
-                )
-                m = np.linalg.norm(flow, axis=2).mean()
-            else:
-                # first sampled frame
-                m = float("inf")
+        small_frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
+        gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
 
-            movements.append((frame_idx, m))
-            prev_gray = gray
+        if prev_gray is not None:
+            flow = cv2.calcOpticalFlowFarneback(
+                prev_gray, gray, None,
+                0.3, 3, 15, 3, 8, 1.5, 0
+            )
+            movement = np.linalg.norm(flow, axis=2).mean()
+            print(f"Frame {frame_idx}: movement={movement:.2f}")
+            if min_movement < movement < max_movement:
+                selected_frames.append(frame)  # Store original full-size frame
+        else:
+            selected_frames.append(frame)
 
+        prev_gray = gray
         frame_idx += 1
 
     cap.release()
-
-    if not movements:
-        return []
-
-    # ——— FILTER & SELECT ———
-    # 1. filter out low-motion
-    filtered = [(i, m) for (i, m) in movements if m >= min_movement]
-    if not filtered:
-        return []
-
-    # 2. detect peaks
-    peaks = []
-    for j in range(1, len(filtered) - 1):
-        i_prev, m_prev = filtered[j - 1]
-        i_cur, m_cur  = filtered[j]
-        i_next, m_next = filtered[j + 1]
-        if m_cur >= m_prev and m_cur >= m_next:
-            peaks.append((i_cur, m_cur))
-
-    # fallback if no peaks
-    candidates = peaks or filtered
-
-    # 3. pick top_k by movement
-    top_indices = sorted(candidates, key=lambda x: x[1], reverse=True)[:top_k]
-    frame_indices = [i for (i, _) in top_indices]
-
-    # ——— PASS 2: Seek & read only chosen frames ———
-    cap = cv2.VideoCapture(video_path)
-    keyframes: List[np.ndarray] = []
-
-    for idx in frame_indices:
-        cap.set(cv2.CAP_PROP_POS_FRAMES, idx)
-        ret, frame = cap.read()
-        if not ret:
-            continue
-        keyframes.append(frame)
-
-    cap.release()
-    return keyframes
+    return selected_frames
 
 
 def generate_panorama_image_from_video(video_path: str):
