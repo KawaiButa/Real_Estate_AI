@@ -34,21 +34,6 @@ class TourviewController(Controller):
         1. Endpoint to get the tourview image of the Property.
         """
         return await service.get_tourview_for_property(property_id)
-
-    @post("/images")
-    async def upload_tourview_images(
-        self,
-        service: TourviewService,
-        property_id: uuid.UUID,
-        data: list[UploadFile] = Body(
-            description="A list of images to be stitched into a tourview."
-        ),
-    ) -> Tourview:
-        """
-        2. Endpoint to upload a list of images to create the Tourview image.
-        """
-        return await service.create_from_images(property_id, data)
-
     @post("/transfer/start", no_auth=True)
     async def start_transfer_session(
         self,

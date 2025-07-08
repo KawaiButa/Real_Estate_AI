@@ -46,67 +46,13 @@ class TourviewService(SQLAlchemyAsyncRepositoryService[Tourview]):
     repository_type = TourviewRepository
     supabase_service: SupabaseService = SupabaseService()
 
-    async def get_tourview_for_property(self, property_id: uuid.UUID) -> Tourview:
+    async def get_tourview_for_property(self, property_id: uuid.UUID) -> List[Tourview]:
         """Retrieves the tourview associated with a property."""
-        await self._get_property(property_id)  # Ensure property exists
-
-        query = select(Tourview).where(Tourview.property_id == property_id)
-        result = await self.repository.session.execute(query)
-        tourview = result.scalar_one_or_none()
-
-        if not tourview:
+        tourviews = await self.list(Tourview.id == property_id)
+        if len(tourviews) == 0:
             raise NotFoundException(f"No Tourview found for property {property_id}.")
 
-        return tourview
-
-    async def create_from_images(
-        self, property_id: uuid.UUID, images: list
-    ) -> Tourview:
-        """
-        Creates a tourview from a list of uploaded images by stitching them.
-        """
-        prop = await self._get_property(property_id)
-
-        # 1. Save uploaded images temporarily
-        temp_dir = UPLOAD_DIR / str(uuid.uuid4())
-        temp_dir.mkdir()
-
-        image_paths = []
-        for image_file in images:
-            file_path = temp_dir / image_file.filename
-            async with aiofiles.open(file_path, "wb") as f:
-                await f.write(await image_file.read())
-            image_paths.append(file_path)
-
-        # 2. Stitch the images (YOUR IMPLEMENTATION GOES HERE)
-        try:
-            final_image_path = await self.stitch_images(image_paths)
-        except Exception as e:
-            # Clean up on failure
-            shutil.rmtree(temp_dir)
-            raise ClientException(f"Failed to process images: {e}") from e
-
-        # 3. Create database records
-        # NOTE: final_image_path should be a public URL after moving it to a public storage (e.g., S3)
-        new_image = PILImage(
-            url=str(final_image_path),  # This should be a URL, not a local path in prod
-            model_id=prop.id,
-            model_type="property_tourview",
-        )
-
-        new_tourview = Tourview(
-            name=f"Tour View for {prop.title}", property_id=prop.id, image=new_image
-        )
-
-        self.repository.session.add(new_tourview)
-        await self.repository.session.commit()
-        await self.repository.session.refresh(new_tourview)
-
-        # 4. Clean up temporary files
-        shutil.rmtree(temp_dir)
-
-        return new_tourview
-
+        return tourviews
     async def start_transfer_session(
         self, property_id: uuid.UUID, data: StartTransferSessionDTO
     ) -> uuid.UUID:
@@ -122,7 +68,7 @@ class TourviewService(SQLAlchemyAsyncRepositoryService[Tourview]):
             "path": session_dir,
             "file_count": 0,
             "expected_files": (data.size if data.transfer_type == "image" else None),
-            "current_size": 0 if data.transfer_type != "image" else None,
+            "current_size": 0,
             "size": data.size if data.transfer_type != "image" else None,
             "name": data.name,
         }
@@ -199,7 +145,7 @@ class TourviewService(SQLAlchemyAsyncRepositoryService[Tourview]):
 
         print(f"Reassembly complete. Final file at {final_file}")
         return final_file
-    
+
     async def stitch_video(
         self, path: str, property_id: uuid.UUID, name: str
     ) -> Tourview:
@@ -294,6 +240,7 @@ class TourviewService(SQLAlchemyAsyncRepositoryService[Tourview]):
             await self.repository.session.commit()
             for path in paths:
                 os.remove(path)
+
 
 async def provide_tourview_service(
     db_session: AsyncSession,
