@@ -1,3 +1,4 @@
+import os
 from typing import List
 import torch
 from lightglue.utils import rbd
@@ -5,6 +6,7 @@ from lightglue import LightGlue, SuperPoint
 import networkx as nx
 from tqdm import tqdm
 import gc
+
 device = "cuda" if torch.cuda.is_available() else "cpu"
 from PIL import Image
 from torchvision import transforms as t
@@ -29,8 +31,12 @@ def pad_to_equirectangular(image):
         print("Image is already 2:1 equirectangular.")
         return image
     elif h > target_height:
-        print(f"Resizing image from ({w}x{h}) to ({w}x{target_height}) to match 2:1 ratio.")
-        resized_image = cv2.resize(image, (w, target_height), interpolation=cv2.INTER_AREA)
+        print(
+            f"Resizing image from ({w}x{h}) to ({w}x{target_height}) to match 2:1 ratio."
+        )
+        resized_image = cv2.resize(
+            image, (w, target_height), interpolation=cv2.INTER_AREA
+        )
         return resized_image
     pad_total = target_height - h
     print(f"Padding: {pad_total} px to reach {target_height}px height.")
@@ -94,6 +100,7 @@ def compute_matches(images, match_conf=0.6):
     del features, feats_np, matcher, extractor
     return G
 
+
 def compute_mst_order(G, start):
     mst = nx.minimum_spanning_tree(G, weight="weight")
     order = list(nx.dfs_preorder_nodes(mst, source=start))
@@ -121,10 +128,12 @@ def generate_panorama_images(images):
         return None
     return pano
 
+
 def fill_black_with_inpainting(image):
     mask = np.all(image == 0, axis=2).astype(np.uint8) * 255
     impainted = cv2.inpaint(image, mask, inpaintRadius=5, flags=cv2.INPAINT_TELEA)
     return impainted
+
 
 def generate_panorama_image_from_path(image_paths: List[str]):
     images = read_images(image_paths)
@@ -139,11 +148,68 @@ def generate_panorama_image_from_path(image_paths: List[str]):
     panorama = pad_to_equirectangular(panorama)
     return fill_black_with_inpainting(panorama)
 
-def extract_and_select_frames(video_path, min_movement=3, max_movement=50, step=3):
+
+def file_has_moov_atom(path, check_size=10 * 1024 * 1024):
+    """Quick scan for 'moov' atom in first and last few MB of the file."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(check_size)
+            f.seek(-check_size, os.SEEK_END)
+            tail = f.read(check_size)
+        return b"moov" in head or b"moov" in tail
+    except Exception as e:
+        print(f"Error while checking moov atom: {e}")
+        return False
+
+
+def extract_and_select_frames(
+    video_path,
+    min_movement=5,
+    max_movement=50,
+    step=5,
+    allowed_extensions={".mp4", ".mov", ".avi", ".mkv", ".webm"},
+):
+    # 1. Check file exists
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"Video file not found: {video_path}")
+
+    # 2. Validate extension
+    ext = os.path.splitext(video_path)[1].lower()
+    if ext not in allowed_extensions:
+        raise ValueError(
+            f"Unsupported video format '{ext}'. Allowed: {allowed_extensions}"
+        )
+
+    # 3. Validate moov atom (only for .mp4/.mov files)
+    if ext in {".mp4", ".mov"} and not file_has_moov_atom(video_path):
+        raise ValueError("Invalid or incomplete MP4/MOV file: 'moov' atom not found.")
+
+    # 4. Open video
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        raise RuntimeError("Could not open video.")
+        raise RuntimeError(
+            "Failed to open video. The file might be corrupted or unsupported."
+        )
 
+    # 5. Validate basic properties
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    if total_frames == 0 or width == 0 or height == 0:
+        cap.release()
+        raise ValueError("Invalid video file: zero frame count or resolution.")
+
+    # 6. Validate first frame
+    ret, test_frame = cap.read()
+    if not ret or test_frame is None:
+        cap.release()
+        raise RuntimeError(
+            "Could not read the first frame. The file might be corrupted."
+        )
+    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # rewind to first frame
+
+    # --- Proceed with frame extraction ---
     selected_frames = []
     prev_gray = None
     frame_idx = 0
@@ -159,7 +225,9 @@ def extract_and_select_frames(video_path, min_movement=3, max_movement=50, step=
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         if prev_gray is not None:
-            flow = cv2.calcOpticalFlowFarneback(prev_gray, gray, None, 0.3, 3, 15, 3, 8, 1.5, 0)
+            flow = cv2.calcOpticalFlowFarneback(
+                prev_gray, gray, None, 0.3, 3, 15, 3, 8, 1.5, 0
+            )
             movement = np.linalg.norm(flow, axis=2).mean()
             print(f"Frame {frame_idx}: avg movement={movement:.2f}")
             if min_movement < movement < max_movement:
@@ -169,8 +237,11 @@ def extract_and_select_frames(video_path, min_movement=3, max_movement=50, step=
 
         prev_gray = gray
         frame_idx += 1
+
     cap.release()
     return selected_frames
+
+
 def generate_panorama_image_from_video(video_path: str):
     images = extract_and_select_frames(video_path)
     gc.collect()
