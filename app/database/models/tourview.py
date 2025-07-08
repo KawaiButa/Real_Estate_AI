@@ -46,3 +46,4 @@ class Tourview(BaseModel):
 class TourviewSchema(BaseSchema):
     image: ImageSchema
     name: str
+    property_id: uuid.UUID

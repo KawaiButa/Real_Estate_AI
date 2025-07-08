@@ -18,7 +18,7 @@ from domains.tourview.utils import (
 from domains.tourview.dtos import (
     StartTransferSessionDTO,
 )
-from database.models.tourview import Tourview
+from database.models.tourview import Tourview, TourviewSchema
 from sqlalchemy.ext.asyncio import AsyncSession
 from domains.supabase.service import SupabaseService
 import aiofiles
@@ -46,13 +46,14 @@ class TourviewService(SQLAlchemyAsyncRepositoryService[Tourview]):
     repository_type = TourviewRepository
     supabase_service: SupabaseService = SupabaseService()
 
-    async def get_tourview_for_property(self, property_id: uuid.UUID) -> List[Tourview]:
+    async def get_tourview_for_property(self, property_id: uuid.UUID) -> List[TourviewSchema]:
         """Retrieves the tourview associated with a property."""
-        tourviews = await self.list(Tourview.id == property_id)
+        tourviews = await self.list(Tourview.property_id == property_id)
         if len(tourviews) == 0:
             raise NotFoundException(f"No Tourview found for property {property_id}.")
 
-        return tourviews
+        return self.to_schema(tourviews, schema_type=TourviewSchema).items
+
     async def start_transfer_session(
         self, property_id: uuid.UUID, data: StartTransferSessionDTO
     ) -> uuid.UUID:

@@ -15,7 +15,7 @@ from domains.tourview.dtos import (
     StartTransferSessionDTO,
     StartTransferResponseDTO,
 )
-from database.models.tourview import Tourview
+from database.models.tourview import Tourview, TourviewSchema
 from litestar.background_tasks import BackgroundTask, BackgroundTasks
 from litestar.security.jwt import Token
 
@@ -29,7 +29,7 @@ class TourviewController(Controller):
     )
     async def get_tourview_image(
         self, service: TourviewService, property_id: uuid.UUID
-    ) -> List[Tourview]:
+    ) -> List[TourviewSchema]:
         """
         1. Endpoint to get the tourview image of the Property.
         """
