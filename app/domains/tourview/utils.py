@@ -164,9 +164,9 @@ def file_has_moov_atom(path, check_size=10 * 1024 * 1024):
 
 def extract_and_select_frames(
     video_path,
-    min_movement=3,
+    min_movement=5,
     max_movement=50,
-    step=5,
+    step=10,
     resize_scale=0.25,
 ):
     cap = cv2.VideoCapture(video_path)
@@ -210,6 +210,7 @@ def extract_and_select_frames(
 
 def generate_panorama_image_from_video(video_path: str):
     images = extract_and_select_frames(video_path)
+    print(f"Found {len(images)} images")
     gc.collect()
     graph = compute_matches(images, match_conf=0.6)
     degrees = dict(graph.degree())

@@ -1,4 +1,7 @@
 from __future__ import annotations
+import asyncio
+import threading
+import time
 from typing import Any, List, Union
 import uuid
 from litestar import Controller, Request, Response, get, post
@@ -13,7 +16,7 @@ from domains.tourview.dtos import (
     StartTransferResponseDTO,
 )
 from database.models.tourview import Tourview
-from litestar.background_tasks import BackgroundTask
+from litestar.background_tasks import BackgroundTask, BackgroundTasks
 from litestar.security.jwt import Token
 
 
@@ -88,18 +91,29 @@ class TourviewController(Controller):
         request: Request[User, Token, Any],
         service: TourviewService,
         session_id: uuid.UUID,
-    ) -> str:
+    ) -> Response:
         """
         Extra Endpoint: Finalizes a chunked transfer after all chunks are uploaded.
         This is necessary to trigger the processing of video/panorama files.
         """
         result, name = await service.finalize_transfer(session_id)
-        background_task = BackgroundTask(
-            self.create_tourview, request.user, result, property_id, name, service
+        return Response(
+            "Transfer completed successfully.",
+            background=BackgroundTasks(
+                [
+                    BackgroundTask(
+                        self._launch_create_tourview,
+                        request.user,
+                        result,
+                        property_id,
+                        name,
+                        service,
+                    )
+                ]
+            ),
         )
-        return Response("Transfer completed successfully.", background=background_task)
 
-    async def notify_partner(self, user: User, tourview: Union[Tourview, None]):
+    def notify_partner(self, user: User, tourview: Union[Tourview, None]):
         if not user.device_token:
             return
         notify_service = NotificationService()
@@ -131,9 +145,23 @@ class TourviewController(Controller):
         property_id: uuid.UUID,
         name: str,
         service: TourviewService,
-    ):
+    ) -> None:
         if isinstance(path, str):
             tourview = await service.stitch_video(path, property_id, name)
         else:
             tourview = await service.stitch_images(path, property_id, name)
-        await self.notify_partner(user, tourview)
+        self.notify_partner(user, tourview)
+    
+    def _launch_create_tourview(
+        self,
+        user: User,
+        path: Union[str, list[str]],
+        property_id: uuid.UUID,
+        name: str,
+        service: TourviewService,
+    ) -> None:
+        threading.Thread(
+            target=asyncio.run,
+            args=(self.create_tourview(user, path, property_id, name, service),),
+            daemon=True,
+        ).start()
