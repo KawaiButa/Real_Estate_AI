@@ -164,52 +164,15 @@ def file_has_moov_atom(path, check_size=10 * 1024 * 1024):
 
 def extract_and_select_frames(
     video_path,
-    min_movement=5,
+    min_movement=3,
     max_movement=50,
     step=5,
-    allowed_extensions={".mp4", ".mov", ".avi", ".mkv", ".webm"},
+    resize_scale=0.25,
 ):
-    # 1. Check file exists
-    if not os.path.exists(video_path):
-        raise FileNotFoundError(f"Video file not found: {video_path}")
-
-    # 2. Validate extension
-    ext = os.path.splitext(video_path)[1].lower()
-    if ext not in allowed_extensions:
-        raise ValueError(
-            f"Unsupported video format '{ext}'. Allowed: {allowed_extensions}"
-        )
-
-    # 3. Validate moov atom (only for .mp4/.mov files)
-    if ext in {".mp4", ".mov"} and not file_has_moov_atom(video_path):
-        raise ValueError("Invalid or incomplete MP4/MOV file: 'moov' atom not found.")
-
-    # 4. Open video
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        raise RuntimeError(
-            "Failed to open video. The file might be corrupted or unsupported."
-        )
+        raise RuntimeError("Failed to open video")
 
-    # 5. Validate basic properties
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-
-    if total_frames == 0 or width == 0 or height == 0:
-        cap.release()
-        raise ValueError("Invalid video file: zero frame count or resolution.")
-
-    # 6. Validate first frame
-    ret, test_frame = cap.read()
-    if not ret or test_frame is None:
-        cap.release()
-        raise RuntimeError(
-            "Could not read the first frame. The file might be corrupted."
-        )
-    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)  # rewind to first frame
-
-    # --- Proceed with frame extraction ---
     selected_frames = []
     prev_gray = None
     frame_idx = 0
@@ -223,15 +186,18 @@ def extract_and_select_frames(
             frame_idx += 1
             continue
 
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        small_frame = cv2.resize(frame, (0, 0), fx=resize_scale, fy=resize_scale)
+        gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
+
         if prev_gray is not None:
             flow = cv2.calcOpticalFlowFarneback(
-                prev_gray, gray, None, 0.3, 3, 15, 3, 8, 1.5, 0
+                prev_gray, gray, None,
+                0.5, 1, 3, 3, 5, 1.1, 0
             )
             movement = np.linalg.norm(flow, axis=2).mean()
-            print(f"Frame {frame_idx}: avg movement={movement:.2f}")
+            print(f"Frame {frame_idx}: movement={movement:.2f}")
             if min_movement < movement < max_movement:
-                selected_frames.append(frame)
+                selected_frames.append(frame)  # Store original full-size frame
         else:
             selected_frames.append(frame)
 
