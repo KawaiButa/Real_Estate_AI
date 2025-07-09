@@ -335,7 +335,7 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
         partial_summaries = []
         for chunk in chunks:
             summary_out = summarizer(
-                chunk, max_length=150, min_length=10, do_sample=False, truncation=True
+                chunk, max_length=len(chunk) // 2, min_length=10, do_sample=False, truncation=True
             )
             partial_summaries.append(summary_out[0]["summary_text"])
         combined = "\n".join(partial_summaries)
@@ -470,7 +470,7 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
         )
         if summarized_query is None or len(summarized_query) == 0:
             return []
-        reranked_articles = self.get_relevant_articles(summarized_query, 10, 3)
+        reranked_articles = self.get_relevant_articles(summarized_query, 10, 2)
         article_service = ArticleService(session=self.repository.session)
         full_articles = await article_service.list(
             Article.id.in_([article["_id"] for article in reranked_articles])
