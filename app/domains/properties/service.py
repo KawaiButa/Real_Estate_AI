@@ -10,7 +10,7 @@ from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 import numpy as np
 from pydantic import BaseModel, ValidationInfo, field_validator
 import requests
-from sqlalchemy import Enum, and_, asc, desc, exists, func, literal, select
+from sqlalchemy import Enum, and_, asc, case, desc, exists, func, literal, select
 from litestar.params import Parameter
 from litestar.openapi.spec.example import Example
 from litestar.exceptions import ValidationException, NotAuthorizedException
@@ -234,10 +234,20 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             top_k=1000,
         )
         ids = [m["id"] for m in pine_res["matches"]]
+        whens = [
+            (Property.id == pid, rank)
+            for rank, pid in enumerate(ids)
+        ]
+
+        ordering_case = case(
+            *whens,
+            else_=len(ids)         # any id not matched goes last
+        )
+
         query = self._build_sql_query(search_param, user_id, ids)
-        order_exp = self._build_order_expression(search_param)
+        query = query.order_by(ordering_case)
         paginated = (
-            query.order_by(order_exp).offset(pagination.offset).limit(pagination.limit)
+            query.offset(pagination.offset).limit(pagination.limit)
         )
         items = await self.finalize_and_add_optional_field(paginated, recommended=True)
 
