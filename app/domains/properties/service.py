@@ -2,7 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 from datetime import datetime
 import os
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from uuid import UUID
 import uuid
 from advanced_alchemy.repository import SQLAlchemyAsyncRepository
@@ -10,7 +10,7 @@ from advanced_alchemy.service import SQLAlchemyAsyncRepositoryService
 import numpy as np
 from pydantic import BaseModel, ValidationInfo, field_validator
 import requests
-from sqlalchemy import Enum, and_, asc, desc, exists, func, select
+from sqlalchemy import Enum, and_, asc, desc, exists, func, literal, select
 from litestar.params import Parameter
 from litestar.openapi.spec.example import Example
 from litestar.exceptions import ValidationException, NotAuthorizedException
@@ -28,7 +28,7 @@ from domains.properties.dtos import (
 from domains.image.service import ImageService
 from domains.supabase.service import SupabaseService, provide_supabase_service
 from database.models.address import Address
-from database.models.property import Property
+from database.models.property import Favorite, Property, PropertySchema
 from sqlalchemy.ext.asyncio import AsyncSession
 from advanced_alchemy.filters import LimitOffset
 from litestar.pagination import OffsetPagination, CursorPagination
@@ -185,7 +185,7 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         search_param: PropertySearchParams,
         pagination: LimitOffset,
         user_id: uuid.UUID | None = None,
-    ) -> OffsetPagination[Property] | CursorPagination[str, Property]:
+    ) -> OffsetPagination[PropertySchema] | CursorPagination[str, Property]:
         """
         Route between recommendation (cursor-based) and normal search (offset-based).
         """
@@ -193,27 +193,64 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             return await self._search_recommended(search_param, pagination, user_id)
         return await self._search_normal(search_param, pagination, user_id)
 
+    async def get_relevant_property(
+        self, property_id: UUID, pagination: LimitOffset | None = None
+    ) -> OffsetPagination[PropertySchema]:
+        result = await self.fetch_pinecone_document_by_id([property_id])
+        if len(result) == 0:
+            return OffsetPagination(
+                items=[],
+                offset=pagination.offset,
+                limit=pagination.limit,
+                total=0,
+            )
+        pine_res = property_index.query(
+            vector=result[str(property_id)],
+            top_k=1000,
+        )
+        ids = [m["id"] for m in pine_res["matches"]]
+        property = self.to_schema(
+            await self._fetch_properties_from_ids(ids, pagination=pagination),
+            schema_type=PropertySchema,
+        ).items
+        return OffsetPagination(
+            items=property,
+            offset=pagination.offset,
+            limit=pagination.limit,
+            total=len(pine_res),
+        )
+
     async def _search_recommended(
         self,
         search_param: PropertySearchParams,
         pagination: LimitOffset,
         user_id: uuid.UUID,
-    ) -> OffsetPagination[Property]:
-        meta_filter = self._build_pinecone_filter(search_param)
+    ) -> OffsetPagination[PropertySchema]:
+        # meta_filter = self._build_pinecone_filter(search_param)
         user_embedding = await self._compute_user_embedding(user_id)
         pine_res = property_index.query(
             vector=user_embedding,
-            filter=meta_filter,
-            top_k=pagination.limit,
+            # filter=meta_filter,
+            top_k=1000,
         )
         ids = [m["id"] for m in pine_res["matches"]]
-        props = await self._fetch_properties_from_ids(ids)
+        query = self._build_sql_query(search_param, user_id, ids)
+        order_exp = self._build_order_expression(search_param)
+        paginated = (
+            query.order_by(order_exp).offset(pagination.offset).limit(pagination.limit)
+        )
+        items = await self.finalize_and_add_optional_field(paginated, recommended=True)
+
+        total = await self.repository.session.scalar(
+            select(func.count()).select_from(query.subquery())
+        )
         await self._record_search(user_id, search_param, recommended=True)
+
         return OffsetPagination(
-            items=props,
+            items=items,
             offset=pagination.offset,
             limit=pagination.limit,
-            total=len(props) + pagination.limit,
+            total=total,
         )
 
     async def _search_normal(
@@ -221,30 +258,56 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         search_param: PropertySearchParams,
         pagination: LimitOffset,
         user_id: uuid.UUID | None,
-    ) -> OffsetPagination[Property]:
+    ) -> OffsetPagination[PropertySchema]:
         query = self._build_sql_query(search_param, user_id)
         order_exp = self._build_order_expression(search_param)
         paginated = (
             query.order_by(order_exp).offset(pagination.offset).limit(pagination.limit)
         )
-        result = await self.repository.session.execute(paginated)
-        items = result.scalars().unique().all()
-        total = await self.count()
-        await self._record_search(user_id, search_param, recommended=False)
+        items = await self.finalize_and_add_optional_field(paginated)
+
+        total = await self.repository.session.scalar(
+            select(func.count()).select_from(query.subquery())
+        )
+        await self._record_search(user_id, search_param, recommended=True)
+
         return OffsetPagination(
             items=items,
-            total=total,
-            limit=pagination.limit,
             offset=pagination.offset,
+            limit=pagination.limit,
+            total=total,
         )
+
+    async def finalize_and_add_optional_field(
+        self, query, recommended: bool = False
+    ) -> List[PropertySchema]:
+        result = await self.repository.session.execute(query)
+        items = result.unique().all()
+        property_schemas = []
+        for prop, is_favorited in items:
+            data = prop.to_schema() if hasattr(prop, "to_schema") else prop.__dict__
+            data["is_favorited"] = is_favorited
+            data["recommended"] = recommended
+            schema = PropertySchema.model_validate(data)
+            property_schemas.append(schema)
+        return property_schemas
 
     def _build_sql_query(
         self,
         search_param: PropertySearchParams,
         user_id: uuid.UUID | None,
+        ids: List[uuid.UUID] = [],
     ):
+        subquery = (
+            select(literal(True))
+            .where(
+                and_(Favorite.user_id == user_id, Favorite.property_id == Property.id)
+            )
+            .correlate(Property)
+            .exists()
+        )
         query = (
-            select(Property)
+            select(Property, subquery.label("is_favorited"))
             .options(
                 joinedload(Property.address),
                 joinedload(Property.owner),
@@ -253,6 +316,9 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
             .join(Property.owner)
             .where(User.id != user_id)
         )
+        if len(ids) > 0:
+            query = query.where(Property.id.in_(ids))
+
         # geo filter
         if search_param.lat is not None and search_param.lng is not None:
             query = query.join(Property.address)
@@ -346,12 +412,16 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         #     mf["city"] = {"$eq": f"%{search_param.city}%"}
         return mf
 
-    async def _fetch_properties_from_ids(self, ids: list[str]) -> list[Property]:
+    async def _fetch_properties_from_ids(
+        self, ids: list[str], pagination: LimitOffset | None = None
+    ) -> list[Property]:
         query = (
             select(Property)
             .options(joinedload(Property.address), joinedload(Property.owner))
             .where(Property.id.in_(ids))
         )
+        if pagination:
+            query = query.offset(pagination.offset).limit(pagination.limit)
         result = await self.repository.session.execute(query)
         props = result.scalars().all()
         return props

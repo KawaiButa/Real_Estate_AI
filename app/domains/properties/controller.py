@@ -58,10 +58,16 @@ class PropertyController(Controller):
         ],
         property_service: PropertyService,
         pagination: LimitOffset,
-    ) -> OffsetPagination[Property]:
+    ) -> OffsetPagination[PropertySchema]:
         return await property_service.search(
             search_param=params, pagination=pagination, user_id=user_id
         )
+
+    @get("/{property_id: uuid}/relevant", no_auth=True)
+    async def get_relevant_property(
+        self, property_id: uuid.UUID, property_service: PropertyService
+    ) -> OffsetPagination[PropertySchema]:
+        return await property_service.get_relevant_property(property_id)
 
     @get(
         "/{property_id: uuid}",

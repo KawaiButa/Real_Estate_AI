@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pydantic import Field
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Optional
 import uuid
@@ -166,6 +167,7 @@ class Property(BaseModel):
         return "\n".join(lines)
 
 
+
 class PropertySchema(BaseSchema):
     title: str
     property_category: str
@@ -183,6 +185,9 @@ class PropertySchema(BaseSchema):
     address_id: uuid.UUID | None
     owner: Optional["UserSchema"]
     address: Optional["AddressSchema"]
-    images: list[ImageSchema]
-    tags: list[TagSchema]
-    reviews: list[ReviewSchema]
+    images: list["ImageSchema"]
+    tags: list["TagSchema"]
+    reviews: list["ReviewSchema"]
+
+    recommended: bool = Field(default=False)
+    is_favorited: bool = Field(default=False)
