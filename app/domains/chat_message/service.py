@@ -339,7 +339,9 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
             )
             partial_summaries.append(summary_out[0]["summary_text"])
         combined = "\n".join(partial_summaries)
-        final_out = summarizer(combined, max_length=200, min_length=50, do_sample=False)
+        final_out = summarizer(
+            combined, max_length=len(combined) // 2, min_length=5, do_sample=False
+        )
 
         return final_out[0]["summary_text"]
 
@@ -416,6 +418,7 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
                 "description": string,
                 "average_rating": number,
                 "status": boolean,
+                "city" string,
             }
             If not, do not append the tag.
             You will be provided with a list of relative articles that might help you answer user.
@@ -424,7 +427,7 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
             Here is the list of relative articles that you can based on to response to user: """
             for i, article in enumerate(articles):
                 system_instruction += f"\n ======== Article {i + 1} ============ \nTitle: {article.title} \nContent: {article.content} \nPublished date: {article.publish_date.isoformat()}"
-            system_instruction += f" If you use information from any provided article. Reference that article with the link. Also, here is there summary of the conversation between you and this customer {summary}"
+            system_instruction += f" If you use information from any provided article. Reference that article as <name> - <Author> (<Link>) . Also, here is there summary of the conversation between you and this customer {summary}"
             try:
                 response = client.models.generate_content(
                     model="gemini-2.0-flash",
@@ -467,7 +470,7 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
         )
         if summarized_query is None or len(summarized_query) == 0:
             return []
-        reranked_articles = self.get_relevant_articles(summarized_query, 20, 10)
+        reranked_articles = self.get_relevant_articles(summarized_query, 10, 3)
         article_service = ArticleService(session=self.repository.session)
         full_articles = await article_service.list(
             Article.id.in_([article["_id"] for article in reranked_articles])
