@@ -465,6 +465,8 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
         summarized_query = self.summarize_query_for_rag(
             query, max_length=len(query) // 2
         )
+        if summarized_query is None or len(summarized_query) == 0:
+            return []
         reranked_articles = self.get_relevant_articles(summarized_query, 20, 10)
         article_service = ArticleService(session=self.repository.session)
         full_articles = await article_service.list(
