@@ -368,7 +368,7 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
         return context
 
     async def ai_respond_to_user(
-        self, data: CreateMessageDTO, user_id: uuid.UUID, window_size: int = 10
+        self, data: CreateMessageDTO, user_id: uuid.UUID, window_size: int = 5
     ) -> ChatMessage:
         """
         Unified response handler:
@@ -470,7 +470,7 @@ class ChatMessageService(SQLAlchemyAsyncRepositoryService[ChatMessage]):
         )
         if summarized_query is None or len(summarized_query) == 0:
             return []
-        reranked_articles = self.get_relevant_articles(summarized_query, 10, 2)
+        reranked_articles = self.get_relevant_articles(summarized_query, 10, 4)
         article_service = ArticleService(session=self.repository.session)
         full_articles = await article_service.list(
             Article.id.in_([article["_id"] for article in reranked_articles])
