@@ -230,7 +230,6 @@ class PropertyService(SQLAlchemyAsyncRepositoryService[Property]):
         user_embedding = await self._compute_user_embedding(user_id)
         pine_res = property_index.query(
             vector=user_embedding,
-            # filter=meta_filter,
             top_k=1000,
         )
         ids = [m["id"] for m in pine_res["matches"]]

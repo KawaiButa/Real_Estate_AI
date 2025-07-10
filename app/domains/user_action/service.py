@@ -19,7 +19,7 @@ class UserActionRepository(SQLAlchemyAsyncRepository[UserAction]):
             .where(UserAction.user_id == user_id)
             .where(UserAction.action == "view")
             .distinct()
-            .limit(10)
+            .limit(5)
         ).subquery()
 
         result = await self.session.execute(
