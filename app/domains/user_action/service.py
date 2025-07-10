@@ -15,21 +15,14 @@ class UserActionRepository(SQLAlchemyAsyncRepository[UserAction]):
 
     async def get_relevant_properties(self, user_id: uuid.UUID) -> List[uuid.UUID]:
         prop_ids_subq = (
-            select(UserAction.property_id)
+            select(UserAction)
             .where(UserAction.user_id == user_id)
             .where(UserAction.action == "view")
             .distinct()
             .limit(5)
-        ).subquery()
-
-        result = await self.session.execute(
-            select(UserAction)
-            .where(
-                UserAction.user_id == user_id,
-                UserAction.property_id.in_(select(prop_ids_subq)),
-            )
-            .order_by(UserAction.property_id, UserAction.created_at)
         )
+
+        result = await self.session.execute(prop_ids_subq)
         actions = result.scalars().all()
         return [action.property_id for action in actions]
 
